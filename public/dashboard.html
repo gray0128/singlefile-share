@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的文件 - SingleFile Share</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/css/reset.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <style>
+        .header {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            padding: 24px 40px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: var(--bg-main);
+            gap: 40px;
+        }
+
+        .logo-area {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo {
+            font-weight: 800;
+            font-size: 1.8rem;
+            color: var(--text-main);
+            line-height: 1;
+            letter-spacing: -0.04em;
+        }
+
+        .logo-sub {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--accent);
+            letter-spacing: 0.15em;
+            margin-top: 4px;
+            text-transform: uppercase;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            justify-self: end;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .main-content {
+            padding: 40px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+            height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        .upload-area {
+            border: 1px dashed var(--border-subtle);
+            padding: 32px;
+            text-align: center;
+            color: var(--text-muted);
+            transition: all 0.2s;
+            background: rgba(255, 255, 255, 0.01);
+            cursor: pointer;
+            margin-bottom: 40px;
+            font-family: var(--font-mono);
+        }
+
+        .upload-area:hover,
+        .upload-area.dragover {
+            border-color: var(--accent);
+            background: rgba(255, 51, 0, 0.05);
+            color: var(--text-main);
+        }
+
+        .actions-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 16px;
+        }
+
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .file-card {
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.3s ease;
+        }
+
+        .file-card:hover {
+            background-color: var(--bg-card-hover);
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+        }
+
+        .preview {
+            height: 180px;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .preview-icon {
+            font-size: 48px;
+            color: var(--accent);
+            opacity: 0.5;
+        }
+
+        .meta {
+            padding: 12px 16px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .file-card:hover .meta {
+            background: var(--bg-card-hover);
+        }
+
+        .filename {
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            border-top: 1px solid var(--border-subtle);
+            padding-top: 10px;
+            margin-top: 4px;
+        }
+
+        .meta-extra {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .file-card:hover .meta-extra {
+            max-height: 80px;
+            opacity: 1;
+            padding-top: 8px;
+        }
+
+        /* User Dropdown */
+        .user-menu-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .user-menu-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            min-width: 180px;
+            display: none;
+            flex-direction: column;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            margin-top: 8px;
+        }
+
+        .user-menu-container::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            right: 0;
+            height: 8px;
+        }
+
+        .user-menu-container:hover .user-menu-dropdown {
+            display: flex;
+        }
+
+        .user-menu-item {
+            padding: 12px 16px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
+            font-family: var(--font-mono);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .user-menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .user-menu-item:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-main);
+            padding-left: 20px;
+        }
+
+        .user-menu-item.highlight {
+            color: var(--accent);
+        }
+
+        .user-menu-item.danger:hover {
+            color: #ff4444;
+        }
+
+        /* Status Messages */
+        .status-locked,
+        .status-pending {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="noise-overlay"></div>
+    <div class="scanline"></div>
+
+    <header class="header">
+        <div class="logo-area">
+            <div class="logo">SINGLEFILE</div>
+            <div class="logo-sub">网页快照分享 // V1.0</div>
+        </div>
+        <div class="header-decor"
+            style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--border-subtle);">
+            系统: 在线 <br> 网络: 安全
+        </div>
+        <div class="user-info" id="userInfo">
+            <span>加载中...</span>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Storage Usage Widget -->
+        <div id="storageWidget"
+            style="margin-bottom: 20px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); display: none;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span>存储空间</span>
+                <span id="storageText">0 / 0 MB</span>
+            </div>
+            <div
+                style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div id="storageBar"
+                    style="width: 0%; height: 100%; background: var(--accent); transition: width 0.3s;"></div>
+            </div>
+        </div>
+
+        <div class="upload-area" id="dropZone">
+            <h3 style="margin-bottom: 8px; font-weight: 500;">上传 HTML 文件</h3>
+            <p style="font-size: 0.9em;">拖拽到此处 或 点击选择文件</p>
+            <input type="file" id="fileInput" accept=".html,.htm" hidden>
+        </div>
+
+        <div class="actions-bar">
+            <h2 style="font-size: 1.5rem; font-weight: 700;">我的文件</h2>
+            <button class="icon-btn" onclick="loadFiles()" title="刷新">
+                <span class="material-symbols-outlined">refresh</span>
+            </button>
+        </div>
+
+        <div class="file-grid" id="fileGrid">
+            <!-- Cards injected here -->
+        </div>
+    </main>
+
+    <script src="/js/dashboard.js" type="module"></script>
+</body>
+
+</html>
