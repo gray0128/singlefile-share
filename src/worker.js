@@ -1,7 +1,7 @@
 import { D1Helper } from './db.js';
 import { R2Helper } from './r2.js';
 import { AuthHelper, createSessionCookie, verifySession, createLogoutResponse } from './auth.js';
-import { handleQueue } from './events.js';
+import { handleScheduled } from './cron.js';
 
 export default {
     async fetch(request, env, ctx) {
@@ -12,6 +12,9 @@ export default {
         const db = new D1Helper(env.DB);
         const bucket = new R2Helper(env.BUCKET);
         const auth = new AuthHelper(env);
+
+        // Auto-migration (safe to run)
+        await db.initSchema();
 
         // --- Auth Routes ---
         if (path === '/auth/login') {
@@ -71,6 +74,13 @@ export default {
 
         if (path === '/auth/logout') {
             return createLogoutResponse();
+        }
+
+        // --- Public Config API ---
+        if (path === '/api/config') {
+            return Response.json({
+                timezone: env.DISPLAY_TIMEZONE || 'Asia/Shanghai'
+            });
         }
 
         // --- Public Share Access ---
@@ -166,7 +176,10 @@ export default {
 
         // LIST FILES
         if (path === '/api/files' && method === 'GET') {
-            const files = await db.getFilesByUserId(userId);
+            const urlObj = new URL(request.url);
+            const search = urlObj.searchParams.get('search');
+            const tag = urlObj.searchParams.get('tag');
+            const files = await db.getFilesByUserId(userId, { search, tag });
             return Response.json(files);
         }
 
@@ -218,12 +231,89 @@ export default {
         // RENAME FILE
         if (path.startsWith('/api/files/') && method === 'PATCH') {
             const id = path.split('/api/files/')[1];
+            // Check for sub-resource (description)
+            if (path.endsWith('/description')) {
+                const fileId = path.split('/')[3];
+                const file = await db.getFileById(fileId);
+                if (!file || file.user_id !== userId) return new Response('Not Found', { status: 404 });
+
+                const { description } = await request.json();
+                const result = await db.updateFileDescription(fileId, description);
+                return Response.json(result);
+            }
+
             const file = await db.getFileById(id);
             if (!file || file.user_id !== userId) return new Response('Not Found', { status: 404 });
 
             const { filename } = await request.json(); // actually display_name
             if (filename) await db.updateFilename(id, filename);
             return new Response('Updated', { status: 200 });
+        }
+
+        // FILE TAGS
+        if (path.startsWith('/api/files/') && path.includes('/tags')) {
+            // POST /api/files/:id/tags
+            if (method === 'POST') {
+                const fileId = path.split('/')[3];
+                const file = await db.getFileById(fileId);
+                if (!file || file.user_id !== userId) return new Response('Not Found', { status: 404 });
+
+                const { tagId } = await request.json();
+                await db.addFileTag(fileId, tagId);
+                return new Response('Added', { status: 200 });
+            }
+            // DELETE /api/files/:id/tags/:tagId
+            if (method === 'DELETE') {
+                const parts = path.split('/');
+                const fileId = parts[3];
+                const tagId = parts[5];
+                const file = await db.getFileById(fileId);
+                if (!file || file.user_id !== userId) return new Response('Not Found', { status: 404 });
+
+                await db.removeFileTag(fileId, tagId);
+                return new Response('Removed', { status: 200 });
+            }
+        }
+
+        // TAG MANAGEMENT
+        if (path.startsWith('/api/tags')) {
+            if (method === 'GET') {
+                const tags = await db.getUserTags(userId);
+                return Response.json(tags);
+            }
+            if (method === 'POST') {
+                const { name } = await request.json();
+                if (!name) return new Response('Name required', { status: 400 });
+                try {
+                    const tag = await db.createTag(userId, name);
+                    return Response.json(tag);
+                } catch (e) {
+                    return new Response('Tag already exists or invalid', { status: 400 });
+                }
+            }
+            if (method === 'PUT') {
+                // /api/tags/:id
+                const id = path.split('/')[3];
+                const { name } = await request.json();
+                // Verify ownership (simplified: try update where user_id matches, but db updateTag only takes id)
+                // We need to ensure user owns tag. db.getUserTags could be used to verify?
+                // Or just assume id is unique enough? Better: getUserTags to check ownership
+                const userTags = await db.getUserTags(userId);
+                const owned = userTags.find(t => t.id == id);
+                if (!owned) return new Response('Not Found', { status: 404 });
+
+                const result = await db.updateTag(id, name);
+                return Response.json(result);
+            }
+            if (method === 'DELETE') {
+                const id = path.split('/')[3];
+                const userTags = await db.getUserTags(userId);
+                const owned = userTags.find(t => t.id == id);
+                if (!owned) return new Response('Not Found', { status: 404 });
+
+                await db.deleteTag(id);
+                return new Response('Deleted', { status: 200 });
+            }
         }
 
         // SHARE ACTIONS
@@ -249,8 +339,8 @@ export default {
         return new Response('Not Found', { status: 404 });
     },
 
-    // QUEUE HANDLER
-    async queue(batch, env, ctx) {
-        await handleQueue(batch, env);
+    // SCHEDULED CRON HANDLER
+    async scheduled(event, env, ctx) {
+        await handleScheduled(event, env, ctx);
     }
 };

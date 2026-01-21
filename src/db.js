@@ -3,6 +3,40 @@ export class D1Helper {
         this.db = db;
     }
 
+    // Schema Migration
+    async initSchema() {
+        // Create tags table
+        await this.db.prepare(`
+            CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, name)
+            )
+        `).run();
+
+        // Create file_tags table
+        await this.db.prepare(`
+            CREATE TABLE IF NOT EXISTS file_tags (
+                file_id INTEGER NOT NULL,
+                tag_id INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (file_id, tag_id),
+                FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+                FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+            )
+        `).run();
+
+        // Add description column if missing
+        try {
+            await this.db.prepare('ALTER TABLE files ADD COLUMN description TEXT').run();
+        } catch (e) {
+            // Ignore error if column already exists
+        }
+    }
+
     // User Operations
     async getUserByGithubId(githubId) {
         const stmt = this.db.prepare('SELECT * FROM users WHERE github_id = ?');
@@ -126,30 +160,69 @@ export class D1Helper {
     }
 
     // File Operations
-    async createFile(userId, filename, displayName, size, r2Key, mimeType = 'text/html') {
+    async createFile(userId, filename, displayName, size, r2Key, mimeType = 'text/html', description = null) {
         const stmt = this.db.prepare(
-            'INSERT INTO files (user_id, filename, display_name, size, r2_key, mime_type) VALUES (?, ?, ?, ?, ?, ?) RETURNING *'
+            'INSERT INTO files (user_id, filename, display_name, size, r2_key, mime_type, description) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *'
         );
-        return await stmt.bind(userId, filename, displayName, size, r2Key, mimeType).first();
+        return await stmt.bind(userId, filename, displayName, size, r2Key, mimeType, description).first();
     }
 
-    async getFilesByUserId(userId) {
-        // Include share status in the file list
-        const stmt = this.db.prepare(`
-      SELECT f.*, s.is_enabled as share_enabled, s.share_id, s.visit_count
-      FROM files f
-      LEFT JOIN shares s ON f.id = s.file_id
-      WHERE f.user_id = ?
-      ORDER BY f.created_at DESC
-    `);
-        const result = await stmt.bind(userId).all();
-        return result.results || [];
+    async updateFileDescription(id, description) {
+        const stmt = this.db.prepare('UPDATE files SET description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *');
+        return await stmt.bind(description, id).first();
     }
 
-    async getFileById(id) {
-        const stmt = this.db.prepare('SELECT * FROM files WHERE id = ?');
-        return await stmt.bind(id).first();
+    async getFilesByUserId(userId, { search, tag } = {}) {
+        let query = `
+            SELECT f.*, 
+            s.is_enabled as share_enabled, s.share_id, s.visit_count,
+            (SELECT json_group_array(json_object('id', t.id, 'name', t.name)) 
+             FROM tags t 
+             JOIN file_tags ft ON t.id = ft.tag_id 
+             WHERE ft.file_id = f.id) as tags
+            FROM files f
+            LEFT JOIN shares s ON f.id = s.file_id
+            WHERE f.user_id = ?
+        `;
+        const params = [userId];
+
+        if (search) {
+            query += ' AND (f.display_name LIKE ? OR f.description LIKE ?)';
+            params.push(`%${search}%`);
+            params.push(`%${search}%`);
+        }
+
+        if (tag) {
+            query += ` AND EXISTS (
+                SELECT 1 FROM file_tags ft
+                JOIN tags t ON ft.tag_id = t.id
+                WHERE ft.file_id = f.id AND t.name = ?
+            )`;
+            params.push(tag);
+        }
+
+        query += ' ORDER BY f.created_at DESC';
+
+        const stmt = this.db.prepare(query);
+        const result = await stmt.bind(...params).all();
+
+        // Parse tags JSON string to object
+        const results = result.results || [];
+        return results.map(file => {
+            if (file.tags && typeof file.tags === 'string') {
+                try {
+                    file.tags = JSON.parse(file.tags);
+                } catch (e) {
+                    file.tags = [];
+                }
+            } else {
+                file.tags = [];
+            }
+            return file;
+        });
     }
+
+
 
     async deleteFile(id) {
         const stmt = this.db.prepare('DELETE FROM files WHERE id = ?');
@@ -159,6 +232,12 @@ export class D1Helper {
     async updateFilename(id, newName) {
         const stmt = this.db.prepare('UPDATE files SET display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
         return await stmt.bind(newName, id).run();
+    }
+
+    async getAllFileKeys() {
+        const stmt = this.db.prepare('SELECT r2_key FROM files');
+        const results = await stmt.all();
+        return results.results || [];
     }
 
     // Share Operations
@@ -203,5 +282,63 @@ export class D1Helper {
             'UPDATE shares SET visit_count = visit_count + 1 WHERE share_id = ?'
         );
         return await stmt.bind(shareId).run();
+    }
+
+    // Tag Operations
+    async createTag(userId, name) {
+        const stmt = this.db.prepare(
+            'INSERT INTO tags (user_id, name) VALUES (?, ?) RETURNING *'
+        );
+        return await stmt.bind(userId, name).first();
+    }
+
+    async getUserTags(userId) {
+        const stmt = this.db.prepare('SELECT * FROM tags WHERE user_id = ? ORDER BY name ASC');
+        const result = await stmt.bind(userId).all();
+        return result.results || [];
+    }
+
+    async updateTag(id, name) {
+        const stmt = this.db.prepare('UPDATE tags SET name = ? WHERE id = ? RETURNING *');
+        return await stmt.bind(name, id).first();
+    }
+
+    async deleteTag(id) {
+        const stmt = this.db.prepare('DELETE FROM tags WHERE id = ?');
+        return await stmt.bind(id).run();
+    }
+
+    // File Tag Operations
+    async addFileTag(fileId, tagId) {
+        const stmt = this.db.prepare(
+            'INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?)'
+        );
+        return await stmt.bind(fileId, tagId).run();
+    }
+
+    async removeFileTag(fileId, tagId) {
+        const stmt = this.db.prepare('DELETE FROM file_tags WHERE file_id = ? AND tag_id = ?');
+        return await stmt.bind(fileId, tagId).run();
+    }
+
+    async getFileById(id) {
+        // Updated to include tags
+        const stmt = this.db.prepare(`
+            SELECT f.*, 
+            (SELECT json_group_array(json_object('id', t.id, 'name', t.name)) 
+             FROM tags t 
+             JOIN file_tags ft ON t.id = ft.tag_id 
+             WHERE ft.file_id = f.id) as tags
+            FROM files f WHERE id = ?
+        `);
+        const file = await stmt.bind(id).first();
+        if (file && file.tags && typeof file.tags === 'string') {
+            try {
+                file.tags = JSON.parse(file.tags);
+            } catch (e) {
+                file.tags = [];
+            }
+        }
+        return file;
     }
 }

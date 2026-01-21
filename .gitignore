@@ -20,3 +20,7 @@ worker/
 # IDEs
 .idea/
 .vscode/
+
+# 文档
+技术设计.md
+需求说明.md

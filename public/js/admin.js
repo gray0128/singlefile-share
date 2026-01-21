@@ -1,7 +1,7 @@
 /**
  * Admin 后台逻辑
  */
-import { formatSize, formatDate, showToast } from './utils.js';
+import { formatSize, formatDate, showToast, initConfig } from './utils.js';
 
 const state = {
     users: [],
@@ -16,6 +16,9 @@ const state = {
 };
 
 async function init() {
+    // 加载时区配置
+    await initConfig();
+
     // 检查权限
     try {
         const res = await fetch('/auth/me');

@@ -1,9 +1,12 @@
 /**
  * Share 页面逻辑
  */
-import { formatSize, formatDate } from './utils.js';
+import { formatSize, formatDate, initConfig } from './utils.js';
 
 async function init() {
+    // 加载时区配置
+    await initConfig();
+
     // 从 URL 获取 share_id: /s/:share_id
     const path = window.location.pathname;
     const match = path.match(/^\/s\/([a-f0-9-]+)$/i);

@@ -19,6 +19,14 @@ database_id = "9ee00c9d-9374-430e-ac5c-b5204bce0438"
 binding = "BUCKET"
 bucket_name = "singlefile-share-files"
 
+# Cron Trigger (Sync every 1 minute)
+[triggers]
+crons = ["* * * * *"]
+
+# Environment Variables
+[vars]
+DISPLAY_TIMEZONE = "Asia/Shanghai"
+
 [assets]
 directory = "./public"
 binding = "ASSETS"

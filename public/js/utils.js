@@ -2,6 +2,24 @@
  * 通用工具函数
  */
 
+/** @type {{ timezone: string }} */
+let config = { timezone: 'Asia/Shanghai' };
+
+/**
+ * 初始化配置（从服务器获取时区等设置）
+ * @returns {Promise<void>}
+ */
+export async function initConfig() {
+    try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+            config = await res.json();
+        }
+    } catch (e) {
+        console.warn('Failed to load config, using defaults:', e);
+    }
+}
+
 /**
  * 格式化文件大小
  * @param {number} bytes 
@@ -19,13 +37,17 @@ export function formatSize(bytes) {
  * @returns {string}
  */
 export function formatDate(dateStr) {
-    const date = new Date(dateStr);
+    // D1 数据库的 CURRENT_TIMESTAMP 返回 UTC 时间，但没有 Z 后缀
+    // 添加 Z 后缀告诉 JavaScript 这是 UTC 时间
+    const utcDateStr = dateStr.endsWith('Z') ? dateStr : dateStr.replace(' ', 'T') + 'Z';
+    const date = new Date(utcDateStr);
     return date.toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: config.timezone
     });
 }
 
