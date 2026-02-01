@@ -2,6 +2,26 @@ import { D1Helper } from './db.js';
 import { R2Helper } from './r2.js';
 import { AuthHelper, createSessionCookie, verifySession, createLogoutResponse } from './auth.js';
 import { handleScheduled } from './cron.js';
+import { extractTextFromHtml } from './utils.js';
+
+// Helper for Vectorize
+async function updateVectorIndex(env, fileId, content, metadata) {
+    if (!env.AI || !env.VECTOR_INDEX) return;
+    try {
+        // Limit text for embedding (approx 8000 chars safe for bge-m3)
+        const text = content.substring(0, 8000);
+        const embeddingResp = await env.AI.run('@cf/baai/bge-m3', { text: [text] });
+        const vector = embeddingResp.data[0];
+
+        await env.VECTOR_INDEX.upsert([{
+            id: fileId.toString(),
+            values: vector,
+            metadata: metadata
+        }]);
+    } catch (e) {
+        console.error('Vector index error:', e);
+    }
+}
 
 export default {
     async fetch(request, env, ctx) {
@@ -171,6 +191,37 @@ export default {
                 const updated = await db.updateUserQuota(id, parseInt(limit));
                 return Response.json(updated);
             }
+
+            // REINDEX CONTENT (Admin)
+            if (path === '/api/admin/reindex' && method === 'POST') {
+                const limit = 5; // Process small batch to avoid timeout
+                const files = await db.getFilesMissingFts(limit);
+
+                let processed = 0;
+                for (const file of files) {
+                    try {
+                        const object = await bucket.get(file.r2_key);
+                        if (object) {
+                            const text = await object.text();
+                            const content = extractTextFromHtml(text);
+                            await db.indexFile(file.id, file.display_name, file.description, content);
+
+                            // Also update vector index
+                            await updateVectorIndex(env, file.id, content, {
+                                userId: file.user_id,
+                                displayName: file.display_name
+                            });
+
+                            processed++;
+                        }
+                    } catch (e) {
+                        console.error(`Failed to index file ${file.id}:`, e);
+                    }
+                }
+
+                return Response.json({ processed, remaining_batch_size: files.length });
+            }
+
             return new Response('Not Found', { status: 404 });
         }
 
@@ -179,7 +230,33 @@ export default {
             const urlObj = new URL(request.url);
             const search = urlObj.searchParams.get('search');
             const tag = urlObj.searchParams.get('tag');
-            const files = await db.getFilesByUserId(userId, { search, tag });
+            const type = urlObj.searchParams.get('type') || 'vector'; // default to vector
+
+            let fileIds = null;
+
+            // Only perform vector search if type is 'vector' AND search term exists
+            if (search && type === 'vector' && env.AI && env.VECTOR_INDEX) {
+                try {
+                    const embeddingResp = await env.AI.run('@cf/baai/bge-m3', { text: [search] });
+                    const queryVector = embeddingResp.data[0];
+                    // Search Vectorize
+                    const matches = await env.VECTOR_INDEX.query(queryVector, { topK: 20 });
+
+                    if (matches.matches && matches.matches.length > 0) {
+                        fileIds = matches.matches.map(m => m.id);
+                    } else {
+                        fileIds = []; // No matches found in vector search
+                    }
+                } catch (e) {
+                    console.error('Vector search failed, falling back to FTS:', e);
+                    // fileIds remains null, which DB layer might interpret as "ignore ID filter"
+                    // But for 'vector' type failure, we might want to fallback to 'meta' or 'exact'?
+                    // Current DB logic: if fileIds is null, it falls back to metadata search if 'search' is present.
+                    // This is acceptable behavior (soft degradation).
+                }
+            }
+
+            const files = await db.getFilesByUserId(userId, { search, tag, fileIds, type });
             return Response.json(files);
         }
 
@@ -209,11 +286,21 @@ export default {
             const titleMatch = text.match(/<title>([^<]+)<\/title>/i);
             const displayName = titleMatch ? titleMatch[1].trim() : file.name;
 
+            // Extract text for FTS
+            const contentText = extractTextFromHtml(text);
+
             await bucket.put(r2Key, text, {
                 httpMetadata: { contentType: 'text/html' }
             });
 
-            const newFile = await db.createFile(userId, file.name, displayName, file.size, r2Key, 'text/html');
+            const newFile = await db.createFile(userId, file.name, displayName, file.size, r2Key, 'text/html', null, contentText);
+
+            // Trigger Vector Indexing
+            ctx.waitUntil(updateVectorIndex(env, newFile.id, contentText, {
+                userId: userId,
+                displayName: displayName
+            }));
+
             return Response.json(newFile);
         }
 
@@ -224,6 +311,12 @@ export default {
             if (!file || file.user_id !== userId) return new Response('Not Found', { status: 404 });
 
             await bucket.delete(file.r2_key);
+
+            // Delete from Vector Index
+            if (env.VECTOR_INDEX) {
+                ctx.waitUntil(env.VECTOR_INDEX.deleteByIds([id]));
+            }
+
             await db.deleteFile(id);
             return new Response('Deleted', { status: 200 });
         }

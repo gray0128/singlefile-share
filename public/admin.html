@@ -192,6 +192,12 @@
                 <option value="active">正常</option>
                 <option value="locked">已锁定</option>
             </select>
+            <div style="flex: 1; display: flex; justify-content: flex-end;">
+                 <button id="reindexBtn" onclick="reindexFiles()" class="action-btn" style="padding: 8px 16px; border: 1px solid var(--accent); color: var(--accent);">
+                    <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 16px; margin-right: 4px;">sync</span>
+                    重建搜索索引
+                 </button>
+            </div>
         </div>
 
         <table class="user-table">

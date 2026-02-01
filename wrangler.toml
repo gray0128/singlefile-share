@@ -27,6 +27,15 @@ crons = ["* * * * *"]
 [vars]
 DISPLAY_TIMEZONE = "Asia/Shanghai"
 
+# Cloudflare AI Binding
+[ai]
+binding = "AI"
+
+# Vectorize Binding
+[[vectorize]]
+binding = "VECTOR_INDEX"
+index_name = "html-search-index"
+
 [assets]
 directory = "./public"
 binding = "ASSETS"

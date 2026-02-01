@@ -29,6 +29,22 @@ export class D1Helper {
             )
         `).run();
 
+        // Create FTS table
+        try {
+            await this.db.prepare(`
+                CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
+                    file_id UNINDEXED,
+                    title,
+                    description,
+                    content
+                );
+            `).run();
+        } catch (e) {
+            // FTS5 might not be enabled or table exists with different schema?
+            // Usually safe to ignore if it exists, but create if not exists handles it.
+            console.error('FTS init error (might be expected):', e);
+        }
+
         // Add description column if missing
         try {
             await this.db.prepare('ALTER TABLE files ADD COLUMN description TEXT').run();
@@ -160,78 +176,193 @@ export class D1Helper {
     }
 
     // File Operations
-    async createFile(userId, filename, displayName, size, r2Key, mimeType = 'text/html', description = null) {
+    async createFile(userId, filename, displayName, size, r2Key, mimeType = 'text/html', description = null, contentText = null) {
+        // 1. Insert into files table
         const stmt = this.db.prepare(
             'INSERT INTO files (user_id, filename, display_name, size, r2_key, mime_type, description) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *'
         );
-        return await stmt.bind(userId, filename, displayName, size, r2Key, mimeType, description).first();
+        const file = await stmt.bind(userId, filename, displayName, size, r2Key, mimeType, description).first();
+
+        // 2. Insert into FTS table if content exists
+        if (file && contentText) {
+            try {
+                await this.db.prepare(
+                    'INSERT INTO files_fts (file_id, title, description, content) VALUES (?, ?, ?, ?)'
+                ).bind(file.id, displayName, description || '', contentText).run();
+            } catch (e) {
+                console.error('FTS index error:', e);
+            }
+        }
+
+        return file;
     }
 
     async updateFileDescription(id, description) {
         const stmt = this.db.prepare('UPDATE files SET description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *');
-        return await stmt.bind(description, id).first();
+        const file = await stmt.bind(description, id).first();
+
+        // Update FTS
+        if (file) {
+             try {
+                // We need to update the description in FTS.
+                // FTS5 doesn't support UPDATE easily for partial columns without re-inserting usually?
+                // Actually standard UPDATE works on FTS5 tables.
+                await this.db.prepare('UPDATE files_fts SET description = ? WHERE file_id = ?')
+                    .bind(description || '', id).run();
+            } catch (e) {
+                console.error('FTS update error:', e);
+            }
+        }
+
+        return file;
     }
 
-    async getFilesByUserId(userId, { search, tag } = {}) {
-        let query = `
-            SELECT f.*, 
-            s.is_enabled as share_enabled, s.share_id, s.visit_count,
-            (SELECT json_group_array(json_object('id', t.id, 'name', t.name)) 
-             FROM tags t 
-             JOIN file_tags ft ON t.id = ft.tag_id 
-             WHERE ft.file_id = f.id) as tags
-            FROM files f
-            LEFT JOIN shares s ON f.id = s.file_id
-            WHERE f.user_id = ?
-        `;
-        const params = [userId];
+    async getFilesByUserId(userId, { search, tag, fileIds, type = 'vector' } = {}) {
+        // Helper to run standard LIKE query (Metadata Search)
+        const runMetadataQuery = async () => {
+             let query = `
+                SELECT f.*,
+                s.is_enabled as share_enabled, s.share_id, s.visit_count,
+                (SELECT json_group_array(json_object('id', t.id, 'name', t.name))
+                 FROM tags t
+                 JOIN file_tags ft ON t.id = ft.tag_id
+                 WHERE ft.file_id = f.id) as tags,
+                 NULL as snippet
+                FROM files f
+                LEFT JOIN shares s ON f.id = s.file_id
+                WHERE f.user_id = ?
+            `;
+            const params = [userId];
 
-        if (search) {
-            query += ' AND (f.display_name LIKE ? OR f.description LIKE ?)';
-            params.push(`%${search}%`);
-            params.push(`%${search}%`);
+            if (fileIds && fileIds.length > 0) {
+                const placeholders = fileIds.map(() => '?').join(',');
+                query += ` AND f.id IN (${placeholders})`;
+                params.push(...fileIds);
+            } else if (search) {
+                // Metadata search: Title or Description
+                query += ' AND (f.display_name LIKE ? OR f.description LIKE ?)';
+                params.push(`%${search}%`);
+                params.push(`%${search}%`);
+            }
+
+            if (tag) {
+                query += ` AND EXISTS (
+                    SELECT 1 FROM file_tags ft
+                    JOIN tags t ON ft.tag_id = t.id
+                    WHERE ft.file_id = f.id AND t.name = ?
+                )`;
+                params.push(tag);
+            }
+
+            query += ' ORDER BY f.created_at DESC';
+            const stmt = this.db.prepare(query);
+            return await stmt.bind(...params).all();
+        };
+
+        // 1. Vector Search Results (IDs provided)
+        if (fileIds) {
+             const result = await runMetadataQuery();
+             const files = result.results || [];
+             // Sort by relevance (order of fileIds)
+             const fileMap = new Map(files.map(f => [f.id, f]));
+             const sortedFiles = fileIds.map(id => fileMap.get(id)).filter(f => f);
+             return sortedFiles.map(this._parseTags);
         }
 
-        if (tag) {
-            query += ` AND EXISTS (
-                SELECT 1 FROM file_tags ft
-                JOIN tags t ON ft.tag_id = t.id
-                WHERE ft.file_id = f.id AND t.name = ?
-            )`;
-            params.push(tag);
+        // 2. Full Text Exact Search
+        if (search && type === 'exact') {
+            try {
+                const sanitizedSearch = search.replace(/"/g, '""');
+                const query = `
+                    SELECT f.*,
+                    s.is_enabled as share_enabled, s.share_id, s.visit_count,
+                    (SELECT json_group_array(json_object('id', t.id, 'name', t.name))
+                     FROM tags t
+                     JOIN file_tags ft ON t.id = ft.tag_id
+                     WHERE ft.file_id = f.id) as tags,
+                     snippet(files_fts, 3, '<b>', '</b>', '...', 10) as snippet
+                    FROM files f
+                    JOIN files_fts fts ON f.id = fts.file_id
+                    LEFT JOIN shares s ON f.id = s.file_id
+                    WHERE f.user_id = ?
+                    AND files_fts MATCH ?
+                    ORDER BY rank
+                `;
+                const stmt = this.db.prepare(query);
+                const result = await stmt.bind(userId, `"${sanitizedSearch}"`).all();
+                const results = result.results || [];
+                return results.map(this._parseTags);
+            } catch (e) {
+                console.warn('FTS search failed:', e);
+                return []; // Return empty if exact search fails (strict mode)
+            }
         }
 
-        query += ' ORDER BY f.created_at DESC';
-
-        const stmt = this.db.prepare(query);
-        const result = await stmt.bind(...params).all();
-
-        // Parse tags JSON string to object
+        // 3. Metadata Search (Title/Description) OR Fallback for Vector/Default
+        // If type is 'meta', or if search is empty, or if type is 'vector' but no IDs (handled in worker, but safe fallback here)
+        const result = await runMetadataQuery();
         const results = result.results || [];
-        return results.map(file => {
-            if (file.tags && typeof file.tags === 'string') {
-                try {
-                    file.tags = JSON.parse(file.tags);
-                } catch (e) {
-                    file.tags = [];
-                }
-            } else {
+        return results.map(this._parseTags);
+    }
+
+    _parseTags(file) {
+        if (file.tags && typeof file.tags === 'string') {
+            try {
+                file.tags = JSON.parse(file.tags);
+            } catch (e) {
                 file.tags = [];
             }
-            return file;
-        });
+        } else {
+            file.tags = [];
+        }
+        return file;
     }
 
 
 
     async deleteFile(id) {
+        // Delete from FTS first (or trigger?)
+        try {
+            await this.db.prepare('DELETE FROM files_fts WHERE file_id = ?').bind(id).run();
+        } catch (e) {
+            // Ignore
+        }
+
         const stmt = this.db.prepare('DELETE FROM files WHERE id = ?');
         return await stmt.bind(id).run();
     }
 
     async updateFilename(id, newName) {
         const stmt = this.db.prepare('UPDATE files SET display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-        return await stmt.bind(newName, id).run();
+        const res = await stmt.bind(newName, id).run();
+
+        // Update FTS
+        try {
+            await this.db.prepare('UPDATE files_fts SET title = ? WHERE file_id = ?').bind(newName, id).run();
+        } catch(e) {}
+
+        return res;
+    }
+
+    // Indexing Helpers
+    async getFilesMissingFts(limit = 10) {
+        // Find files that exist in 'files' but not in 'files_fts'
+        const stmt = this.db.prepare(`
+            SELECT f.*
+            FROM files f
+            LEFT JOIN files_fts fts ON f.id = fts.file_id
+            WHERE fts.file_id IS NULL
+            AND f.mime_type = 'text/html'
+            LIMIT ?
+        `);
+        const result = await stmt.bind(limit).all();
+        return result.results || [];
+    }
+
+    async indexFile(fileId, title, description, content) {
+        return await this.db.prepare(
+            'INSERT INTO files_fts (file_id, title, description, content) VALUES (?, ?, ?, ?)'
+        ).bind(fileId, title, description || '', content).run();
     }
 
     async getAllFileKeys() {
@@ -324,20 +455,16 @@ export class D1Helper {
     async getFileById(id) {
         // Updated to include tags
         const stmt = this.db.prepare(`
-            SELECT f.*, 
-            (SELECT json_group_array(json_object('id', t.id, 'name', t.name)) 
-             FROM tags t 
-             JOIN file_tags ft ON t.id = ft.tag_id 
+            SELECT f.*,
+            (SELECT json_group_array(json_object('id', t.id, 'name', t.name))
+             FROM tags t
+             JOIN file_tags ft ON t.id = ft.tag_id
              WHERE ft.file_id = f.id) as tags
             FROM files f WHERE id = ?
         `);
         const file = await stmt.bind(id).first();
-        if (file && file.tags && typeof file.tags === 'string') {
-            try {
-                file.tags = JSON.parse(file.tags);
-            } catch (e) {
-                file.tags = [];
-            }
+        if (file) {
+            return this._parseTags(file);
         }
         return file;
     }

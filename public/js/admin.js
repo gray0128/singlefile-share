@@ -199,6 +199,36 @@ async function updateStatus(id, status) {
     }
 }
 
+window.reindexFiles = async () => {
+    const btn = document.getElementById('reindexBtn');
+    if (btn) btn.disabled = true;
+
+    try {
+        showToast('开始重建索引...', 'info');
+        let processed = 0;
+        let totalProcessed = 0;
+
+        // Loop until no more files to process
+        do {
+            const res = await fetch('/api/admin/reindex', { method: 'POST' });
+            if (!res.ok) throw new Error('Indexing failed');
+            const data = await res.json();
+            processed = data.processed;
+            totalProcessed += processed;
+
+            if (processed > 0) {
+                 showToast(`已处理 ${totalProcessed} 个文件...`, 'info');
+            }
+        } while (processed > 0);
+
+        showToast(`重建索引完成，共处理 ${totalProcessed} 个文件`, 'success');
+    } catch (e) {
+        showToast('重建索引失败: ' + e.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
 window.editQuota = async (id, currentLimit) => {
     const currentMB = Math.round(currentLimit / (1024 * 1024));
     const input = prompt('请输入新的存储配额 (MB):', currentMB);

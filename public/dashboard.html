@@ -310,12 +310,43 @@
 
             <div style="display:flex; gap: 12px; align-items: center; flex: 1; justify-content: flex-end;">
                 <!-- Filter Bar -->
-                <div style="display: flex; gap: 10px; flex:1; max-width: 400px;">
-                    <input type="text" id="searchInput" placeholder="搜索文件..."
-                        style="flex:1; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); color: #fff; padding: 8px 12px; font-family: var(--font-mono);">
+                <div style="display: flex; gap: 10px; flex:1; max-width: 600px;">
+                    <div style="flex: 1; display: flex; position: relative;">
+                         <select id="searchType" style="
+                            background: rgba(255,255,255,0.05);
+                            border: 1px solid var(--border-subtle);
+                            border-right: none;
+                            color: var(--text-muted);
+                            padding: 8px 12px;
+                            font-family: var(--font-mono);
+                            font-size: 0.8rem;
+                            border-radius: 4px 0 0 4px;
+                            outline: none;
+                            cursor: pointer;
+                        ">
+                            <option value="vector">语义搜索 (AI)</option>
+                            <option value="exact">全文精确</option>
+                            <option value="meta">标题/描述</option>
+                        </select>
+                        <input type="text" id="searchInput" placeholder="搜索文件..."
+                            style="flex:1; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); color: #fff; padding: 8px 12px; font-family: var(--font-mono); border-radius: 0 4px 4px 0;">
+
+                        <button id="clearSearchBtn" class="icon-btn" style="
+                            position: absolute;
+                            right: 8px;
+                            top: 50%;
+                            transform: translateY(-50%);
+                            padding: 4px;
+                            display: none;
+                            background: transparent;
+                            border: none;
+                        " title="清除搜索">
+                            <span class="material-symbols-outlined" style="font-size: 16px; color: var(--text-muted);">close</span>
+                        </button>
+                    </div>
 
                     <select id="tagFilter"
-                        style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); color: #fff; padding: 8px 12px; font-family: var(--font-mono); min-width: 100px;">
+                        style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); color: #fff; padding: 8px 12px; font-family: var(--font-mono); min-width: 100px; border-radius: 4px;">
                         <option value="">所有标签</option>
                         <!-- Tags rendered here -->
                     </select>

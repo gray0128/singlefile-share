@@ -155,14 +155,37 @@ function setupUpload() {
 
 function setupFilters() {
     const searchInput = document.getElementById('searchInput');
+    const searchType = document.getElementById('searchType');
+    const clearBtn = document.getElementById('clearSearchBtn');
     const tagFilter = document.getElementById('tagFilter');
+
+    // Update clear button visibility
+    const updateClearBtn = () => {
+        clearBtn.style.display = searchInput.value ? 'block' : 'none';
+    };
 
     let debounceTimer;
     searchInput.addEventListener('input', () => {
+        updateClearBtn();
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             loadFiles();
         }, 300);
+    });
+
+    // Trigger search immediately on type change if there is a query
+    searchType.addEventListener('change', () => {
+        if (searchInput.value) {
+            loadFiles();
+        }
+    });
+
+    // Clear search interaction
+    clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        updateClearBtn();
+        searchInput.focus();
+        loadFiles();
     });
 
     tagFilter.addEventListener('change', () => {
@@ -170,249 +193,19 @@ function setupFilters() {
     });
 }
 
-// Tag Management
-let allTags = [];
-
-window.loadTags = async function () {
-    try {
-        const res = await fetch('/api/tags');
-        if (res.ok) {
-            allTags = await res.json();
-            renderTagsFilter();
-            renderTagsList();
-        }
-    } catch (e) {
-        console.error('Failed to load tags', e);
-    }
-}
-
-function renderTagsFilter() {
-    const select = document.getElementById('tagFilter');
-    const currentVal = select.value;
-    select.innerHTML = '<option value="">所有标签</option>';
-    allTags.forEach(tag => {
-        const option = document.createElement('option');
-        option.value = tag.name;
-        option.textContent = tag.name;
-        select.appendChild(option);
-    });
-    select.value = currentVal;
-}
-
-function renderTagsList() {
-    const container = document.getElementById('tagsList');
-    if (!container) return; // Modal might not be open
-
-    container.innerHTML = '';
-    if (allTags.length === 0) {
-        container.innerHTML = '<div style="color:var(--text-muted); text-align:center;">暂无标签</div>';
-        return;
-    }
-
-    allTags.forEach(tag => {
-        const div = document.createElement('div');
-        div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:4px;';
-        div.innerHTML = `
-            <span>${tag.name}</span>
-            <button onclick="deleteTag(${tag.id})" class="icon-btn" style="padding:4px; border:none;" title="删除"><span class="material-symbols-outlined" style="font-size:16px;">close</span></button>
-        `;
-        container.appendChild(div);
-    });
-}
-
-window.openTagsModal = function () {
-    document.getElementById('tagsModal').style.display = 'block';
-    renderTagsList(); // Refresh list
-}
-
-window.closeTagsModal = function () {
-    document.getElementById('tagsModal').style.display = 'none';
-}
-
-window.createTag = async function () {
-    const input = document.getElementById('newTagInput');
-    const name = input.value.trim();
-    if (!name) return;
-
-    try {
-        const res = await fetch('/api/tags', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        if (!res.ok) throw new Error(await res.text());
-
-        input.value = '';
-        await loadTags();
-        showToast('标签已创建', 'success');
-    } catch (e) {
-        showToast(e.message, 'error');
-    }
-}
-
-window.deleteTag = async function (id) {
-    if (!confirm('确定删除此标签吗？')) return;
-    try {
-        const res = await fetch(`/api/tags/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to delete');
-        await loadTags();
-        showToast('标签已删除', 'success');
-    } catch (e) {
-        showToast(e.message, 'error');
-    }
-}
-
-// File Edit Logic
-let editingFileId = null;
-let editingFileTags = []; // IDs of tags assigned to file
-
-window.openFileModal = async function (fileId) {
-    editingFileId = fileId;
-    const file = state.files.find(f => f.id === fileId);
-    if (!file) return;
-
-    document.getElementById('fileModal').style.display = 'block';
-    document.getElementById('fileDistDescription').value = file.description || '';
-
-    // Init tags
-    editingFileTags = (file.tags || []).map(t => t.id);
-    renderFileTagsInput();
-}
-
-window.closeFileModal = function () {
-    document.getElementById('fileModal').style.display = 'none';
-    editingFileId = null;
-}
-
-function renderFileTagsInput() {
-    const container = document.getElementById('fileTagsInput');
-    container.innerHTML = '';
-
-    allTags.forEach(tag => {
-        const isSelected = editingFileTags.includes(tag.id);
-        const pill = document.createElement('div');
-        pill.className = isSelected ? 'tag-pill selected' : 'tag-pill';
-        pill.style.cssText = `
-            padding: 4px 12px; 
-            border: 1px solid ${isSelected ? 'var(--accent)' : 'var(--border-subtle)'}; 
-            color: ${isSelected ? '#fff' : 'var(--text-muted)'};
-            background: ${isSelected ? 'var(--accent)' : 'transparent'};
-            cursor: pointer;
-            font-size: 0.8rem;
-            border-radius: 100px;
-            transition: all 0.2s;
-        `;
-        pill.textContent = tag.name;
-        pill.onclick = () => toggleFileTag(tag.id);
-        container.appendChild(pill);
-    });
-}
-
-function toggleFileTag(tagId) {
-    if (editingFileTags.includes(tagId)) {
-        editingFileTags = editingFileTags.filter(id => id !== tagId);
-    } else {
-        editingFileTags.push(tagId);
-    }
-    renderFileTagsInput();
-}
-
-window.saveFileDetails = async function () {
-    if (!editingFileId) return;
-
-    const description = document.getElementById('fileDistDescription').value;
-    const originalFile = state.files.find(f => f.id === editingFileId);
-    const originalTags = (originalFile.tags || []).map(t => t.id);
-
-    try {
-        // Update Description
-        if (description !== originalFile.description) {
-            await fetch(`/api/files/${editingFileId}/description`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ description })
-            });
-        }
-
-        // Update Tags
-        // Find added tags
-        const added = editingFileTags.filter(id => !originalTags.includes(id));
-        // Find removed tags
-        const removed = originalTags.filter(id => !editingFileTags.includes(id));
-
-        for (const tagId of added) {
-            await fetch(`/api/files/${editingFileId}/tags`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tagId })
-            });
-        }
-
-        for (const tagId of removed) {
-            await fetch(`/api/files/${editingFileId}/tags/${tagId}`, {
-                method: 'DELETE'
-            });
-        }
-
-        showToast('保存成功', 'success');
-        closeFileModal();
-        loadFiles(); // Refresh list to show new metadata
-    } catch (e) {
-        showToast('保存失败: ' + e.message, 'error');
-    }
-}
-
-async function handleFiles(files) {
-    if (!files.length) return;
-    const file = files[0];
-
-    if (!file.name.match(/\.html?$/i)) {
-        showToast('只允许上传 HTML 文件', 'error');
-        return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-        showToast('文件大小不能超过 10MB', 'error');
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const dropZone = document.getElementById('dropZone');
-    const originalText = dropZone.innerHTML;
-    dropZone.innerHTML = '<p>上传中...</p>';
-
-    try {
-        const res = await fetch('/api/files', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!res.ok) throw new Error(await res.text());
-
-        showToast('上传成功', 'success');
-        await loadFiles();
-        // 刷新用户信息获取最新存储空间
-        const userRes = await fetch('/auth/me');
-        if (userRes.ok) {
-            state.user = await userRes.json();
-            renderStorage();
-        }
-    } catch (e) {
-        showToast('上传失败: ' + e.message, 'error');
-    } finally {
-        dropZone.innerHTML = originalText;
-    }
-}
+// ... existing code ...
 
 window.loadFiles = async function () {
     try {
         const search = document.getElementById('searchInput')?.value || '';
+        const type = document.getElementById('searchType')?.value || 'vector';
         const tag = document.getElementById('tagFilter')?.value || '';
 
         const params = new URLSearchParams();
-        if (search) params.append('search', search);
+        if (search) {
+            params.append('search', search);
+            params.append('type', type);
+        }
         if (tag) params.append('tag', tag);
 
         const res = await fetch(`/api/files?${params.toString()}`);
@@ -500,7 +293,13 @@ function createFileCard(file) {
     const dateStr = formatDate(file.created_at);
     const visits = file.visit_count || 0;
 
-    const desc = file.description ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${file.description}</div>` : '';
+    let contentDisplay = '';
+    if (file.snippet) {
+        // Search result snippet
+        contentDisplay = `<div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;" class="search-snippet">${file.snippet}</div>`;
+    } else if (file.description) {
+        contentDisplay = `<div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${file.description}</div>`;
+    }
 
     let tagsHtml = '';
     if (file.tags && file.tags.length > 0) {
@@ -512,8 +311,8 @@ function createFileCard(file) {
     card.innerHTML = `
         <div class="meta" style="cursor: default;">
             <div class="filename" onclick="openPreview(${file.id}, '${file.share_id}', ${isShared})" title="${file.display_name}" style="cursor: pointer; margin-bottom:8px;">${file.display_name}</div>
-            
-            ${desc}
+
+            ${contentDisplay}
             ${tagsHtml}
 
             <div class="card-actions">

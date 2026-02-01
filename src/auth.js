@@ -69,22 +69,30 @@ export class AuthHelper {
 // Simple Session Management using signed cookies
 export async function createSessionCookie(userId, secret) {
     const payload = btoa(JSON.stringify({ userId, exp: Date.now() + 86400 * 1000 * 7 })); // 7 days
-    // TODO: Add proper signature in production
-    return `session=${payload}; HttpOnly; Path=/; SameSite=Lax; Secure`;
+    const safePayload = encodeURIComponent(payload);
+    return `session=${safePayload}; HttpOnly; Path=/; SameSite=Lax; Secure`;
 }
 
 export async function verifySession(request) {
     const cookieHeader = request.headers.get('Cookie');
     if (!cookieHeader) return null;
 
-    const cookies = Object.fromEntries(
-        cookieHeader.split(';').map(c => c.trim().split('='))
-    );
+    const cookies = {};
+    for (const cookie of cookieHeader.split(';')) {
+        const parts = cookie.trim().split('=');
+        if (parts.length >= 2) {
+            const name = parts[0];
+            const value = parts.slice(1).join('=');
+            cookies[name] = value;
+        }
+    }
 
     if (!cookies.session) return null;
 
     try {
-        const payload = JSON.parse(atob(cookies.session));
+        // Decode URI component to handle %3D (=) and other special chars
+        const decoded = decodeURIComponent(cookies.session);
+        const payload = JSON.parse(atob(decoded));
         if (payload.exp < Date.now()) return null;
         return payload.userId;
     } catch (e) {
