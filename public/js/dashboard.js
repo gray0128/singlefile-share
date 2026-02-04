@@ -15,10 +15,12 @@ async function init() {
     try {
         const res = await fetch('/auth/me');
         if (!res.ok) {
+            console.error('[Dashboard] Auth check failed:', res.status, res.statusText);
             window.location.href = '/';
             return;
         }
         state.user = await res.json();
+        console.log('[Dashboard] User authenticated:', state.user.username);
 
         // 检查用户状态
         if (state.user.status === 'locked') {
@@ -38,7 +40,7 @@ async function init() {
         loadTags();
         setupFilters();
     } catch (e) {
-        console.error(e);
+        console.error('[Dashboard] Init error:', e.message, e.stack);
         window.location.href = '/';
     }
 
@@ -193,6 +195,30 @@ function setupFilters() {
     });
 }
 
+// 加载标签列表到筛选下拉框
+async function loadTags() {
+    try {
+        const res = await fetch('/api/tags');
+        if (!res.ok) return;
+        const tags = await res.json();
+
+        const tagFilter = document.getElementById('tagFilter');
+        if (!tagFilter) return;
+
+        // 保留第一个"所有标签"选项
+        tagFilter.innerHTML = '<option value="">所有标签</option>';
+
+        tags.forEach(tag => {
+            const option = document.createElement('option');
+            option.value = tag.name;
+            option.textContent = `#${tag.name}`;
+            tagFilter.appendChild(option);
+        });
+    } catch (e) {
+        console.error('Failed to load tags:', e);
+    }
+}
+
 // ... existing code ...
 
 window.loadFiles = async function () {
@@ -316,7 +342,7 @@ function createFileCard(file) {
             ${tagsHtml}
 
             <div class="card-actions">
-                <button class="btn-icon" onclick="renameFile(${file.id}, '${file.display_name.replace(/'/g, "\\'")}', event)" title="重命名">
+                <button class="btn-icon rename-btn" data-id="${file.id}" data-name="${file.display_name.replace(/"/g, '&quot;')}" title="重命名">
                     <span class="material-symbols-outlined">edit</span>
                 </button>
                 <button class="btn-icon" onclick="openFileModal(${file.id})" title="编辑详情">
@@ -450,4 +476,27 @@ window.openPreview = (id, shareId, isShared) => {
     }
 };
 
+// 事件委托：处理重命名按钮点击
+document.addEventListener('click', (e) => {
+    const renameBtn = e.target.closest('.rename-btn');
+    if (renameBtn) {
+        e.stopPropagation();
+        const id = parseInt(renameBtn.dataset.id, 10);
+        const oldName = renameBtn.dataset.name;
+
+        renamingFileId = id;
+        renamingFileOldName = oldName;
+
+        const input = document.getElementById('renameInput');
+        input.value = oldName;
+        document.getElementById('renameModal').style.display = 'block';
+
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 100);
+    }
+});
+
 init();
+
