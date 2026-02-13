@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check:*)",
+      "Bash(wc:*)",
+      "Bash(npx wrangler deploy --dry-run)",
+      "Bash(npx wrangler deploy:*)",
+      "Bash(pkill -f:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_screenshot",
+      "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)",
+      "WebFetch(domain:www.weather.com.cn)",
+      "mcp__MiniMax__understand_image",
+      "Bash(npm run deploy)"
+    ]
+  }
+}
