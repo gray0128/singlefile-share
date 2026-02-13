@@ -18,7 +18,9 @@ function parseMarkdown(text) {
         if (language === 'mermaid') {
             return `<div class="mermaid">${code.trim()}</div>`;
         }
-        return `<pre><code class="language-${language}">${code.trim()}</code></pre>`;
+        // 把换行符临时替换为 \r，防止段落处理时分割代码块
+        const escapedCode = code.trim().replace(/\n/g, '\r');
+        return `<pre><code class="language-${language}">${escapedCode}</code></pre>`;
     });
 
     // 行内代码 (`code`)
@@ -43,11 +45,11 @@ function parseMarkdown(text) {
     // 删除线 (~~text~~)
     html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
 
+    // 图片 ![alt](url) - 必须在链接之前处理
+    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" loading="lazy" />');
+
     // 链接 [text](url)
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-
-    // 图片 ![alt](url)
-    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2" loading="lazy" />');
 
     // 无序列表 (- item 或 * item)
     html = html.replace(/(^|\n)(-\s.*(\n|$))+/g, (match) => {
@@ -78,6 +80,9 @@ function parseMarkdown(text) {
 
     // 清理空段落
     html = html.replace(/<p><\/p>/g, '');
+
+    // 恢复代码块中的换行符（把 \r 换回 \n）
+    html = html.replace(/\r/g, '\n');
 
     return html;
 }
@@ -141,7 +146,7 @@ export function renderMarkdownToHtml(content, title = 'Markdown Document') {
         h3 { font-size: 1.25em; }
         h4 { font-size: 1em; }
         p { margin: 0 0 1em; }
-        a { color: #0366d6; text-decoration: none; }
+        a { color: #0366d6; text-decoration: none; word-break: break-all; overflow-wrap: break-word; }
         a:hover { text-decoration: underline; }
         code {
             background: rgba(27, 31, 35, 0.05);
