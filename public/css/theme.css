@@ -216,3 +216,270 @@ select:focus {
         opacity: 1;
     }
 }
+
+/* Markdown Editor Modal */
+.editor-modal .modal-content {
+    max-width: 95vw;
+    width: 95vw;
+    height: 90vh;
+    margin: 5vh auto;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-main);
+}
+
+.editor-modal-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-main);
+}
+
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-card);
+}
+
+.editor-actions {
+    display: flex;
+    gap: 12px;
+}
+
+#editorContainer {
+    flex: 1;
+    overflow: hidden;
+    padding: 0;
+}
+
+/* Editor.md 容器样式 */
+#editorContainer .editormd-container {
+    height: 100%;
+}
+
+#editorContainer .editormd {
+    height: 100% !important;
+    font-family: var(--font-mono);
+}
+
+/* 修复第一行显示不完整的问题 */
+#editorContainer .editormd-container,
+#editorContainer .editormd-box,
+#editorContainer .editormd-editor,
+#editorContainer .editormd-edit-area {
+    height: 100% !important;
+    min-height: 100% !important;
+}
+
+#editorContainer .editormd-edit-area::after {
+    display: none;
+}
+
+#editorContainer .editormd-toolbar {
+    background: var(--bg-card) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    padding: 8px 12px !important;
+}
+
+#editorContainer .editormd-toolbar-container {
+    background: var(--bg-card) !important;
+}
+
+/* 工具栏按钮 */
+#editorContainer .editormd-toolbar a,
+#editorContainer .editormd-toolbar a:hover {
+    color: var(--text-muted) !important;
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    transition: all 0.15s ease;
+}
+
+#editorContainer .editormd-toolbar a:hover {
+    color: var(--text-main) !important;
+    border-color: var(--accent) !important;
+    background: rgba(255, 51, 0, 0.08) !important;
+}
+
+#editorContainer .editormd-toolbar a.active {
+    color: var(--accent) !important;
+}
+
+/* 编辑区域 */
+#editorContainer .editormd-edit-area {
+    background: var(--bg-main);
+    height: 100% !important;
+}
+
+#editorContainer .CodeMirror {
+    background: var(--bg-main) !important;
+    color: var(--text-main) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 14px !important;
+    height: 100% !important;
+    min-height: 100% !important;
+}
+
+#editorContainer .CodeMirror-scroll {
+    min-height: 100% !important;
+}
+
+#editorContainer .CodeMirror-gutters {
+    background: var(--bg-card) !important;
+    border-right: 1px solid var(--border-subtle) !important;
+}
+
+#editorContainer .CodeMirror-linenumber {
+    color: var(--text-muted) !important;
+}
+
+/* 预览区域 */
+#editorContainer .editormd-preview {
+    background: var(--bg-main) !important;
+    color: var(--text-main) !important;
+    padding: 20px !important;
+    line-height: 1.7;
+}
+
+#editorContainer .editormd-preview h1,
+#editorContainer .editormd-preview h2,
+#editorContainer .editormd-preview h3,
+#editorContainer .editormd-preview h4,
+#editorContainer .editormd-preview h5,
+#editorContainer .editormd-preview h6 {
+    color: var(--text-main);
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0.3em;
+}
+
+#editorContainer .editormd-preview h1:first-child,
+#editorContainer .editormd-preview h2:first-child,
+#editorContainer .editormd-preview h3:first-child {
+    margin-top: 0;
+}
+
+#editorContainer .editormd-preview p {
+    margin-bottom: 1em;
+}
+
+#editorContainer .editormd-preview a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+#editorContainer .editormd-preview a:hover {
+    text-decoration: underline;
+}
+
+#editorContainer .editormd-preview code {
+    font-family: var(--font-mono);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.9em;
+    color: #ff7744;
+}
+
+#editorContainer .editormd-preview pre {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 1em 0;
+}
+
+#editorContainer .editormd-preview pre code {
+    background: transparent;
+    padding: 0;
+    color: var(--text-main);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+#editorContainer .editormd-preview blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 1em 0;
+    color: var(--text-muted);
+    background: rgba(255, 51, 0, 0.05);
+    padding: 12px 16px;
+}
+
+#editorContainer .editormd-preview ul,
+#editorContainer .editormd-preview ol {
+    padding-left: 24px;
+    margin-bottom: 1em;
+}
+
+#editorContainer .editormd-preview li {
+    margin-bottom: 0.5em;
+}
+
+#editorContainer .editormd-preview table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+}
+
+#editorContainer .editormd-preview th,
+#editorContainer .editormd-preview td {
+    border: 1px solid var(--border-subtle);
+    padding: 10px 14px;
+    text-align: left;
+}
+
+#editorContainer .editormd-preview th {
+    background: var(--bg-card);
+    font-weight: 600;
+}
+
+#editorContainer .editormd-preview hr {
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    margin: 2em 0;
+}
+
+#editorContainer .editormd-preview img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+/* 状态栏 */
+#editorContainer .editormd-statusbar {
+    display: none !important;
+}
+
+/* 全屏模式 */
+#editorContainer .editormd-fullscreen {
+    z-index: 3000 !important;
+}
+
+/* 工具栏图标颜色修复 */
+#editorContainer .fa {
+    color: var(--text-muted);
+}
+
+#editorContainer .editormd-toolbar a:hover .fa {
+    color: var(--text-main);
+}
+
+/* 分隔符 */
+#editorContainer .editormd-toolbar .separator {
+    background: var(--border-subtle);
+    margin: 4px 8px;
+}
+
+/* Mermaid 图表样式 */
+#editorContainer .editormd-preview .mermaid {
+    background: var(--bg-card);
+    border-radius: 6px;
+    padding: 16px;
+    margin: 1em 0;
+}

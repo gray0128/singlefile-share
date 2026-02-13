@@ -397,6 +397,9 @@ function createFileCard(file) {
                 <button class="btn-icon rename-btn" data-id="${file.id}" data-name="${file.display_name.replace(/"/g, '&quot;')}" title="重命名">
                     <span class="material-symbols-outlined">edit</span>
                 </button>
+                ${file.mime_type === 'text/markdown' ? `<button class="btn-icon edit-md-btn" data-id="${file.id}" data-name="${file.display_name.replace(/"/g, '&quot;')}" title="编辑 Markdown">
+                    <span class="material-symbols-outlined">edit_note</span>
+                </button>` : ''}
                 <button class="btn-icon" onclick="openFileModal(${file.id})" title="编辑详情">
                      <span class="material-symbols-outlined">description</span>
                 </button>
@@ -548,7 +551,161 @@ document.addEventListener('click', (e) => {
             input.select();
         }, 100);
     }
+
+    // Handle Markdown edit button click
+    const editMdBtn = e.target.closest('.edit-md-btn');
+    if (editMdBtn) {
+        e.stopPropagation();
+        const id = parseInt(editMdBtn.dataset.id, 10);
+        openEditorModal(id);
+    }
 });
+
+// Markdown Editor Modal Logic
+let editingFileId = null;
+let editorMdInstance = null;
+
+window.openEditorModal = async function (id) {
+    editingFileId = id;
+
+    try {
+        const res = await fetch(`/api/files/${id}/content`);
+        if (!res.ok) {
+            const error = await res.text();
+            throw new Error(error || 'Failed to load content');
+        }
+
+        const { content } = await res.json();
+
+        const modal = document.getElementById('editorModal');
+        const container = document.getElementById('editorContainer');
+
+        // Clear previous instance
+        if (editorMdInstance) {
+            editorMdInstance = null;
+        }
+        container.innerHTML = '';
+
+        // Create Editor.md container
+        const editorDiv = document.createElement('div');
+        editorDiv.id = 'editormdContainer';
+        editorDiv.style.height = 'calc(100vh - 180px)';
+        container.appendChild(editorDiv);
+
+        modal.style.display = 'block';
+
+        // Initialize Editor.md with dark theme
+        // Note: editormd expects jQuery to be available globally
+        window.$ = window.jQuery;
+        editormd.loadCSS('https://cdn.jsdelivr.net/npm/editor.md@1.5.0/css/editormd.preview.min.css');
+
+        editorMdInstance = editormd('editormdContainer', {
+            width: '100%',
+            height: '100%',
+            markdown: content,
+            theme: 'dark',
+            previewTheme: 'dark',
+            editorTheme: 'pastel-on-dark',
+            toolbar: true,
+            toolbarIcons: function() {
+                return [
+                    'bold', 'italic', 'strikethrough', '|',
+                    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', '|',
+                    'list', 'ordered-list', '|',
+                    'code-block', 'quote', '|',
+                    'link', 'image', '|',
+                    'table', 'datetime', '|',
+                    'preview', 'fullscreen', '|'
+                ];
+            },
+            toolbarIconsClass: {
+                'datetime': 'fa-clock'
+            },
+            toolbarCustomIcons: {
+                'datetime': '<a href="javascript:;" title="当前时间" onclick="insertDateTime()"><i class="fa fa-clock"></i></a>'
+            },
+            path: 'https://cdn.jsdelivr.net/npm/editor.md@1.5.0/lib/',
+            codeFold: true,
+            saveHTMLToTextarea: true,
+            searchReplace: true,
+            emoji: true,
+            taskList: true,
+            tocm: true,
+            tex: true,
+            flowChart: true,
+            sequenceDiagram: true,
+            imageUpload: false,
+            imageFormats: ['jpg', 'jpeg', 'gif', 'png', 'webp'],
+            onload: function() {
+                console.log('Editor.md loaded');
+            }
+        });
+
+    } catch (e) {
+        console.error('Failed to open editor:', e);
+        showToast(e.message, 'error');
+    }
+};
+
+window.closeEditorModal = function () {
+    document.getElementById('editorModal').style.display = 'none';
+
+    if (editorMdInstance) {
+        editorMdInstance = null;
+    }
+
+    // Remove the container
+    const container = document.getElementById('editorContainer');
+    const editorDiv = document.getElementById('editormdContainer');
+    if (editorDiv) {
+        editorDiv.remove();
+    }
+
+    editingFileId = null;
+};
+
+window.saveMarkdownContent = async function () {
+    if (!editingFileId || !editorMdInstance) return;
+
+    const content = editorMdInstance.getMarkdown();
+
+    try {
+        const res = await fetch(`/api/files/${editingFileId}/content`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        });
+
+        if (!res.ok) {
+            const error = await res.text();
+            throw new Error(error || 'Failed to save');
+        }
+
+        showToast('保存成功', 'success');
+        closeEditorModal();
+        loadFiles();
+
+        // Refresh storage info if size changed
+        const userRes = await fetch('/auth/me');
+        if (userRes.ok) {
+            state.user = await userRes.json();
+            renderStorage();
+        }
+
+    } catch (e) {
+        console.error('Failed to save:', e);
+        showToast(e.message, 'error');
+    }
+};
+
+// Insert current datetime at cursor position
+window.insertDateTime = function() {
+    if (editorMdInstance) {
+        const now = new Date();
+        const formatted = now.toISOString().replace('T', ' ').substring(0, 19);
+        editorMdInstance.insertValue('`' + formatted + '`');
+    }
+};
 
 init();
 
