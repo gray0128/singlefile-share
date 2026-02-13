@@ -106,7 +106,9 @@ export default {
 
         // --- Public Share Access ---
         if (path.startsWith('/raw/')) {
-            const shareId = path.split('/raw/')[1];
+            const shareId = path.split('/raw/')[1].split('?')[0]; // 移除查询参数
+            const url = new URL(request.url);
+            const isDownload = url.searchParams.get('download') === '1';
             const share = await db.getShareByShareId(shareId);
 
             if (!share) return new Response('Not Found or Disabled', { status: 404 });
@@ -123,14 +125,27 @@ export default {
             // 检查是否是 Markdown 文件
             const isMarkdown = share.mime_type === 'text/markdown' || share.r2_key.endsWith('.md');
 
-            if (isMarkdown) {
-                // Markdown 文件：渲染为 HTML
+            if (isMarkdown && !isDownload) {
+                // Markdown 文件预览：渲染为 HTML
                 const content = await object.text();
                 const html = renderMarkdownToHtml(content, share.display_name || 'Markdown Document');
                 headers.set('Content-Type', 'text/html; charset=utf-8');
                 // 允许加载外部图片
                 headers.set('Content-Security-Policy', "sandbox allow-scripts allow-same-origin; default-src 'self'; style-src 'unsafe-inline'; img-src * data:;");
                 return new Response(html, { headers });
+            }
+
+            if (isMarkdown && isDownload) {
+                // Markdown 文件下载：返回原始内容
+                const content = await object.text();
+                let filename = share.display_name || share.filename || 'document';
+                // 确保有 .md 扩展名
+                if (!filename.endsWith('.md')) {
+                    filename += '.md';
+                }
+                headers.set('Content-Type', 'text/markdown; charset=utf-8');
+                headers.set('Content-Disposition', `attachment; filename="${filename}"`);
+                return new Response(content, { headers });
             }
 
             // HTML 文件：直接返回（原有行为）
