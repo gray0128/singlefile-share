@@ -74,6 +74,7 @@ The backend is a single Cloudflare Worker (`src/worker.js`) with modular helpers
 - **`src/auth.js`** - GitHub OAuth and JWT session management
 - **`src/cron.js`** - Scheduled task handler for file sync
 - **`src/utils.js`** - Text extraction from HTML for search indexing
+- **`src/markdown.js`** - Markdown rendering engine (GFM, Mermaid, syntax highlighting)
 
 #### 3. File Storage and Sync Strategy
 
@@ -100,7 +101,19 @@ The system supports three search modes:
 
 3. **Metadata Search**: Direct SQL LIKE queries on `display_name`
 
-#### 5. Frontend Layout: JS-Driven Masonry
+#### 5. Markdown File Handling
+
+The system supports Markdown (.md) file upload and rendering:
+
+- **Upload**: Supports `.md` files up to 10MB (same as HTML files)
+- **Rendering**: `/raw/:share_id` endpoint automatically renders Markdown to HTML:
+  - GFM (GitHub Flavored Markdown) support
+  - Mermaid diagrams (flowcharts, sequence diagrams, etc.)
+  - Syntax highlighting for code blocks
+- **Download Mode**: Use `?download=1` query parameter to download raw Markdown content instead of rendered HTML
+- **Styling**: Optimized CSS for word-break on links and preserved whitespace in code blocks
+
+#### 6. Frontend Layout: JS-Driven Masonry
 
 The dashboard uses a JavaScript-driven masonry (瀑布流) layout:
 
