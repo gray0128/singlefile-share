@@ -42,7 +42,10 @@ async function init() {
         // 设置下载链接
         const downloadBtn = document.getElementById('downloadBtn');
         downloadBtn.href = `/raw/${shareId}`;
-        downloadBtn.download = share.filename || 'download.html';
+        // 根据文件类型设置下载文件名
+        const isMarkdown = share.mime_type === 'text/markdown' || share.filename?.endsWith('.md');
+        const defaultName = isMarkdown ? 'document.md' : 'download.html';
+        downloadBtn.download = share.filename || defaultName;
 
         // 创建 iframe 加载内容
         const container = document.getElementById('viewerContainer');

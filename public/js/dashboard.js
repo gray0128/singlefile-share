@@ -118,6 +118,58 @@ function renderPending() {
     `;
 }
 
+async function handleFiles(files) {
+    if (!files || files.length === 0) return;
+
+    for (const file of files) {
+        // 验证文件类型
+        if (!file.name.match(/\.(html?|md)$/i)) {
+            showToast(`不支持的文件类型: ${file.name}`, 'error');
+            continue;
+        }
+
+        // 验证文件大小 (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            showToast(`文件过大: ${file.name} (最大 10MB)`, 'error');
+            continue;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            showToast(`正在上传: ${file.name}...`, 'info');
+
+            const res = await fetch('/api/files', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(errorText || '上传失败');
+            }
+
+            showToast(`${file.name} 上传成功`, 'success');
+            loadFiles(); // 刷新文件列表
+
+            // 刷新存储空间显示
+            const userRes = await fetch('/auth/me');
+            if (userRes.ok) {
+                state.user = await userRes.json();
+                renderStorage();
+            }
+        } catch (e) {
+            console.error('Upload error:', e);
+            showToast(`${file.name} 上传失败: ${e.message}`, 'error');
+        }
+    }
+
+    // 清空文件输入框，允许重复上传相同文件
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) fileInput.value = '';
+}
+
 function setupUpload() {
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');

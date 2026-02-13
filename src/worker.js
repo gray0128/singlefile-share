@@ -3,6 +3,7 @@ import { R2Helper } from './r2.js';
 import { AuthHelper, createSessionCookie, verifySession, createLogoutResponse } from './auth.js';
 import { handleScheduled } from './cron.js';
 import { extractTextFromHtml } from './utils.js';
+import { renderMarkdownToHtml, extractTitleFromMarkdown, extractTextFromMarkdown } from './markdown.js';
 
 // Helper for Vectorize
 async function updateVectorIndex(env, fileId, content, metadata) {
@@ -118,6 +119,21 @@ export default {
             const headers = new Headers();
             object.writeHttpMetadata(headers);
             headers.set('etag', object.httpEtag);
+
+            // 检查是否是 Markdown 文件
+            const isMarkdown = share.mime_type === 'text/markdown' || share.r2_key.endsWith('.md');
+
+            if (isMarkdown) {
+                // Markdown 文件：渲染为 HTML
+                const content = await object.text();
+                const html = renderMarkdownToHtml(content, share.display_name || 'Markdown Document');
+                headers.set('Content-Type', 'text/html; charset=utf-8');
+                // 允许加载外部图片
+                headers.set('Content-Security-Policy', "sandbox allow-scripts allow-same-origin; default-src 'self'; style-src 'unsafe-inline'; img-src * data:;");
+                return new Response(html, { headers });
+            }
+
+            // HTML 文件：直接返回（原有行为）
             // Security Headers
             headers.set('Content-Security-Policy', "sandbox allow-scripts allow-same-origin; default-src 'self'; style-src 'unsafe-inline'; img-src * data:;");
 
@@ -271,7 +287,7 @@ export default {
             const file = formData.get('file');
 
             if (!file || !(file instanceof File)) return new Response('No file', { status: 400 });
-            if (!file.name.match(/\.html?$/i)) return new Response('Only HTML allowed', { status: 400 });
+            if (!file.name.match(/\.(html?|md)$/i)) return new Response('Only HTML and Markdown files allowed', { status: 400 });
             if (file.size > 10 * 1024 * 1024) return new Response('Max 10MB', { status: 400 });
 
             // Check Quota
@@ -279,21 +295,34 @@ export default {
             const limit = currentUser.storage_limit || 104857600;
             if ((usage.total_used + file.size) > limit) return new Response('Quota exceeded', { status: 403 });
 
-            const r2Key = `files/${userId}/${crypto.randomUUID()}.html`;
+            const isMarkdown = file.name.match(/\.md$/i);
+            const extension = isMarkdown ? 'md' : 'html';
+            const r2Key = `files/${userId}/${crypto.randomUUID()}.${extension}`;
 
-            // Extract Title
             const text = await file.text();
-            const titleMatch = text.match(/<title>([^<]+)<\/title>/i);
-            const displayName = titleMatch ? titleMatch[1].trim() : file.name;
+            let displayName;
+            let contentText;
+            let contentType;
 
-            // Extract text for FTS
-            const contentText = extractTextFromHtml(text);
+            if (isMarkdown) {
+                // Markdown 文件：从第一行 # 提取标题
+                const titleFromMd = extractTitleFromMarkdown(text);
+                displayName = titleFromMd || file.name.replace(/\.md$/i, '');
+                contentText = extractTextFromMarkdown(text);
+                contentType = 'text/markdown';
+            } else {
+                // HTML 文件：从 <title> 标签提取
+                const titleMatch = text.match(/<title>([^<]+)<\/title>/i);
+                displayName = titleMatch ? titleMatch[1].trim() : file.name;
+                contentText = extractTextFromHtml(text);
+                contentType = 'text/html';
+            }
 
             await bucket.put(r2Key, text, {
-                httpMetadata: { contentType: 'text/html' }
+                httpMetadata: { contentType: contentType }
             });
 
-            const newFile = await db.createFile(userId, file.name, displayName, file.size, r2Key, 'text/html', null, contentText);
+            const newFile = await db.createFile(userId, file.name, displayName, file.size, r2Key, contentType, null, contentText);
 
             // Trigger Vector Indexing
             ctx.waitUntil(updateVectorIndex(env, newFile.id, contentText, {
