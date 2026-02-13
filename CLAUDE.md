@@ -112,6 +112,12 @@ The system supports Markdown (.md) file upload and rendering:
   - Syntax highlighting for code blocks
 - **Download Mode**: Use `?download=1` query parameter to download raw Markdown content instead of rendered HTML
 - **Styling**: Optimized CSS for word-break on links and preserved whitespace in code blocks
+- **Editor**: Built-in Editor.md editor with dark theme, real-time preview, math formulas (LaTeX), code folding, and TOC support
+
+#### 5.1 Markdown Editor API
+
+- `GET /api/files/:id/content` - Get raw file content (for editor)
+- `PUT /api/files/:id/content` - Update raw file content (editor save)
 
 #### 6. Frontend Layout: JS-Driven Masonry
 
