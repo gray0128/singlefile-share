@@ -146,7 +146,7 @@ export function renderMarkdownToHtml(content, title = 'Markdown Document') {
         h3 { font-size: 1.25em; }
         h4 { font-size: 1em; }
         p { margin: 0 0 1em; }
-        a { color: #0366d6; text-decoration: none; word-break: break-all; overflow-wrap: break-word; }
+        a { color: #0366d6; text-decoration: none; word-break: break-all; overflow-wrap: break-word; display: inline-block; max-width: 100%; }
         a:hover { text-decoration: underline; }
         code {
             background: rgba(27, 31, 35, 0.05);
