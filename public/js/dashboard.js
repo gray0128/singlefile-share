@@ -609,20 +609,94 @@ window.openEditorModal = async function (id) {
             toolbar: true,
             toolbarIcons: function() {
                 return [
-                    'bold', 'italic', 'strikethrough', '|',
+                    'bold', 'italic', 'del', '|',
                     'h1', 'h2', 'h3', 'h4', 'h5', 'h6', '|',
-                    'list', 'ordered-list', '|',
-                    'code-block', 'quote', '|',
+                    'list-ul', 'list-ol', '|',
+                    'code', 'quote', '|',
                     'link', 'image', '|',
                     'table', 'datetime', '|',
                     'preview', 'fullscreen', '|'
                 ];
             },
             toolbarIconsClass: {
+                'bold': 'fa-bold',
+                'italic': 'fa-italic',
+                'del': 'fa-strikethrough',
+                'h1': 'editormd-bold',
+                'h2': 'editormd-bold',
+                'h3': 'editormd-bold',
+                'h4': 'editormd-bold',
+                'h5': 'editormd-bold',
+                'h6': 'editormd-bold',
+                'list-ul': 'fa-list-ul',
+                'list-ol': 'fa-list-ol',
+                'quote': 'fa-quote-left',
+                'code': 'fa-code',
+                'link': 'fa-link',
+                'image': 'fa-image',
+                'table': 'fa-table',
+                'preview': 'fa-eye',
+                'fullscreen': 'fa-expand',
                 'datetime': 'fa-clock'
             },
             toolbarCustomIcons: {
                 'datetime': '<a href="javascript:;" title="当前时间" onclick="insertDateTime()"><i class="fa fa-clock"></i></a>'
+            },
+            toolbarHandlers: {
+                'bold': function() {
+                    this.bold();
+                },
+                'italic': function() {
+                    this.italic();
+                },
+                'del': function() {
+                    this.strikethrough();
+                },
+                'h1': function() {
+                    this.headers(1);
+                },
+                'h2': function() {
+                    this.headers(2);
+                },
+                'h3': function() {
+                    this.headers(3);
+                },
+                'h4': function() {
+                    this.headers(4);
+                },
+                'h5': function() {
+                    this.headers(5);
+                },
+                'h6': function() {
+                    this.headers(6);
+                },
+                'list-ul': function() {
+                    this.list('ul');
+                },
+                'list-ol': function() {
+                    this.list('ol');
+                },
+                'quote': function() {
+                    this.blockquote();
+                },
+                'code': function() {
+                    this.codeBlock();
+                },
+                'link': function() {
+                    this.link();
+                },
+                'image': function() {
+                    this.image();
+                },
+                'table': function() {
+                    this.table();
+                },
+                'preview': function() {
+                    this.preview();
+                },
+                'fullscreen': function() {
+                    this.fullscreen();
+                }
             },
             path: 'https://cdn.jsdelivr.net/npm/editor.md@1.5.0/lib/',
             codeFold: true,

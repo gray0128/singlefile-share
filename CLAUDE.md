@@ -119,6 +119,10 @@ The system supports Markdown (.md) file upload and rendering:
 - `GET /api/files/:id/content` - Get raw file content (for editor)
 - `PUT /api/files/:id/content` - Update raw file content (editor save)
 
+#### 5.2 Editor Integration Guide
+
+See [docs/editor-integration.md](./docs/editor-integration.md) for detailed documentation on Editor.md integration, including toolbar configuration, known issues, and troubleshooting.
+
 #### 6. Frontend Layout: JS-Driven Masonry
 
 The dashboard uses a JavaScript-driven masonry (瀑布流) layout:
