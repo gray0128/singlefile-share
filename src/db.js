@@ -344,6 +344,11 @@ export class D1Helper {
         return res;
     }
 
+    async updateFileSize(id, newSize) {
+        const stmt = this.db.prepare('UPDATE files SET size = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        return await stmt.bind(newSize, id).run();
+    }
+
     // Indexing Helpers
     async getFilesMissingFts(limit = 10) {
         // Find files that exist in 'files' but not in 'files_fts'

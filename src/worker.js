@@ -365,6 +365,49 @@ export default {
             return new Response('Deleted', { status: 200 });
         }
 
+        // GET FILE CONTENT
+        if (path.startsWith('/api/files/') && path.endsWith('/content') && method === 'GET') {
+            const id = path.split('/api/files/')[1].replace('/content', '');
+            const file = await db.getFileById(id);
+            if (!file || file.user_id !== userId) return new Response('Not Found', { status: 404 });
+
+            const r2Object = await bucket.get(file.r2_key);
+            if (!r2Object) return new Response('File not found', { status: 404 });
+
+            const content = await r2Object.text();
+            return Response.json({ content });
+        }
+
+        // UPDATE FILE CONTENT
+        if (path.startsWith('/api/files/') && path.endsWith('/content') && method === 'PUT') {
+            const id = path.split('/api/files/')[1].replace('/content', '');
+            const file = await db.getFileById(id);
+            if (!file || file.user_id !== userId) return new Response('Not Found', { status: 404 });
+
+            const { content } = await request.json();
+            if (!content) return new Response('Content required', { status: 400 });
+
+            // Update R2
+            await bucket.put(file.r2_key, content, {
+                httpMetadata: { contentType: file.mime_type }
+            });
+
+            // Update file size
+            const newSize = new TextEncoder().encode(content).length;
+            await db.updateFileSize(id, newSize);
+
+            // Update search index if text changed
+            const contentText = file.mime_type === 'text/markdown'
+                ? extractTextFromMarkdown(content)
+                : extractTextFromHtml(content);
+            ctx.waitUntil(updateVectorIndex(env, id, contentText, {
+                userId: userId,
+                displayName: file.display_name
+            }));
+
+            return Response.json({ success: true, size: newSize });
+        }
+
         // RENAME FILE
         if (path.startsWith('/api/files/') && method === 'PATCH') {
             const id = path.split('/api/files/')[1];

@@ -256,100 +256,73 @@ select:focus {
     padding: 0;
 }
 
-/* Editor.md 容器样式 */
-#editorContainer .editormd-container {
+/* Cherry Markdown 容器样式 */
+#cherry-editor-container {
     height: 100%;
-}
-
-#editorContainer .editormd {
-    height: 100% !important;
     font-family: var(--font-mono);
 }
 
-/* 修复第一行显示不完整的问题 */
-#editorContainer .editormd-container,
-#editorContainer .editormd-box,
-#editorContainer .editormd-editor,
-#editorContainer .editormd-edit-area {
-    height: 100% !important;
-    min-height: 100% !important;
+/* 修复 Cherry Markdown 主题适配 */
+#cherry-editor-container .cherry-editor {
+    background: var(--bg-main);
+    height: 100%;
 }
 
-#editorContainer .editormd-edit-area::after {
-    display: none;
+#cherry-editor-container .cherry-editor .cm-editor {
+    height: 100%;
+    background: var(--bg-main);
 }
 
-#editorContainer .editormd-toolbar {
+#cherry-editor-container .cherry-editor .cm-editor .cm-scroller {
+    font-family: var(--font-mono);
+    font-size: 14px;
+}
+
+#cherry-editor-container .cherry-editor .cm-editor .cm-gutters {
+    background: var(--bg-card);
+    border-right: 1px solid var(--border-subtle);
+}
+
+#cherry-editor-container .cherry-editor .cm-editor .cm-content {
+    padding: 12px 0;
+}
+
+#cherry-editor-container .cherry-toolbar {
     background: var(--bg-card) !important;
     border-bottom: 1px solid var(--border-subtle) !important;
     padding: 8px 12px !important;
 }
 
-#editorContainer .editormd-toolbar-container {
-    background: var(--bg-card) !important;
-}
-
-/* 工具栏按钮 */
-#editorContainer .editormd-toolbar a,
-#editorContainer .editormd-toolbar a:hover {
-    color: var(--text-muted) !important;
-    border: 1px solid transparent !important;
-    background: transparent !important;
+#cherry-editor-container .cherry-toolbar .toolbar-icon {
+    color: var(--text-muted);
     transition: all 0.15s ease;
 }
 
-#editorContainer .editormd-toolbar a:hover {
-    color: var(--text-main) !important;
-    border-color: var(--accent) !important;
-    background: rgba(255, 51, 0, 0.08) !important;
+#cherry-editor-container .cherry-toolbar .toolbar-icon:hover {
+    color: var(--text-main);
+    background: rgba(255, 51, 0, 0.08);
+    border-radius: 4px;
 }
 
-#editorContainer .editormd-toolbar a.active {
-    color: var(--accent) !important;
+#cherry-editor-container .cherry-toolbar .separator {
+    background: var(--border-subtle);
+    margin: 4px 8px;
 }
 
-/* 编辑区域 */
-#editorContainer .editormd-edit-area {
+/* Cherry Markdown 预览区域样式 */
+#cherry-editor-container .cherry-preview {
     background: var(--bg-main);
-    height: 100% !important;
-}
-
-#editorContainer .CodeMirror {
-    background: var(--bg-main) !important;
-    color: var(--text-main) !important;
-    font-family: var(--font-mono) !important;
-    font-size: 14px !important;
-    height: 100% !important;
-    min-height: 100% !important;
-}
-
-#editorContainer .CodeMirror-scroll {
-    min-height: 100% !important;
-}
-
-#editorContainer .CodeMirror-gutters {
-    background: var(--bg-card) !important;
-    border-right: 1px solid var(--border-subtle) !important;
-}
-
-#editorContainer .CodeMirror-linenumber {
-    color: var(--text-muted) !important;
-}
-
-/* 预览区域 */
-#editorContainer .editormd-preview {
-    background: var(--bg-main) !important;
-    color: var(--text-main) !important;
-    padding: 20px !important;
+    color: var(--text-main);
+    padding: 20px;
     line-height: 1.7;
 }
 
-#editorContainer .editormd-preview h1,
-#editorContainer .editormd-preview h2,
-#editorContainer .editormd-preview h3,
-#editorContainer .editormd-preview h4,
-#editorContainer .editormd-preview h5,
-#editorContainer .editormd-preview h6 {
+#cherry-editor-container .cherry-preview h1,
+#cherry-editor-container .cherry-preview h2,
+#cherry-editor-container .cherry-preview h3,
+#cherry-editor-container .cherry-preview h4,
+#cherry-editor-container .cherry-preview h5,
+#cherry-editor-container .cherry-preview h6 {
     color: var(--text-main);
     margin-top: 1.5em;
     margin-bottom: 0.5em;
@@ -358,26 +331,26 @@ select:focus {
     padding-bottom: 0.3em;
 }
 
-#editorContainer .editormd-preview h1:first-child,
-#editorContainer .editormd-preview h2:first-child,
-#editorContainer .editormd-preview h3:first-child {
+#cherry-editor-container .cherry-preview h1:first-child,
+#cherry-editor-container .cherry-preview h2:first-child,
+#cherry-editor-container .cherry-preview h3:first-child {
     margin-top: 0;
 }
 
-#editorContainer .editormd-preview p {
+#cherry-editor-container .cherry-preview p {
     margin-bottom: 1em;
 }
 
-#editorContainer .editormd-preview a {
+#cherry-editor-container .cherry-preview a {
     color: var(--accent);
     text-decoration: none;
 }
 
-#editorContainer .editormd-preview a:hover {
+#cherry-editor-container .cherry-preview a:hover {
     text-decoration: underline;
 }
 
-#editorContainer .editormd-preview code {
+#cherry-editor-container .cherry-preview code {
     font-family: var(--font-mono);
     background: var(--bg-card);
     padding: 2px 6px;
@@ -386,8 +359,8 @@ select:focus {
     color: #ff7744;
 }
 
-#editorContainer .editormd-preview pre {
-    background: var(--bg-card) !important;
+#cherry-editor-container .cherry-preview pre {
+    background: var(--bg-card);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     padding: 16px;
@@ -395,7 +368,7 @@ select:focus {
     margin: 1em 0;
 }
 
-#editorContainer .editormd-preview pre code {
+#cherry-editor-container .cherry-preview pre code {
     background: transparent;
     padding: 0;
     color: var(--text-main);
@@ -403,7 +376,7 @@ select:focus {
     line-height: 1.5;
 }
 
-#editorContainer .editormd-preview blockquote {
+#cherry-editor-container .cherry-preview blockquote {
     border-left: 3px solid var(--accent);
     margin: 1em 0;
     color: var(--text-muted);
@@ -411,73 +384,48 @@ select:focus {
     padding: 12px 16px;
 }
 
-#editorContainer .editormd-preview ul,
-#editorContainer .editormd-preview ol {
+#cherry-editor-container .cherry-preview ul,
+#cherry-editor-container .cherry-preview ol {
     padding-left: 24px;
     margin-bottom: 1em;
 }
 
-#editorContainer .editormd-preview li {
+#cherry-editor-container .cherry-preview li {
     margin-bottom: 0.5em;
 }
 
-#editorContainer .editormd-preview table {
+#cherry-editor-container .cherry-preview table {
     width: 100%;
     border-collapse: collapse;
     margin: 1em 0;
 }
 
-#editorContainer .editormd-preview th,
-#editorContainer .editormd-preview td {
+#cherry-editor-container .cherry-preview th,
+#cherry-editor-container .cherry-preview td {
     border: 1px solid var(--border-subtle);
     padding: 10px 14px;
     text-align: left;
 }
 
-#editorContainer .editormd-preview th {
+#cherry-editor-container .cherry-preview th {
     background: var(--bg-card);
     font-weight: 600;
 }
 
-#editorContainer .editormd-preview hr {
+#cherry-editor-container .cherry-preview hr {
     border: none;
     border-top: 1px solid var(--border-subtle);
     margin: 2em 0;
 }
 
-#editorContainer .editormd-preview img {
+#cherry-editor-container .cherry-preview img {
     max-width: 100%;
     height: auto;
     border-radius: 4px;
 }
 
-/* 状态栏 */
-#editorContainer .editormd-statusbar {
-    display: none !important;
-}
-
-/* 全屏模式 */
-#editorContainer .editormd-fullscreen {
-    z-index: 3000 !important;
-}
-
-/* 工具栏图标颜色修复 */
-#editorContainer .fa {
-    color: var(--text-muted);
-}
-
-#editorContainer .editormd-toolbar a:hover .fa {
-    color: var(--text-main);
-}
-
-/* 分隔符 */
-#editorContainer .editormd-toolbar .separator {
-    background: var(--border-subtle);
-    margin: 4px 8px;
-}
-
 /* Mermaid 图表样式 */
-#editorContainer .editormd-preview .mermaid {
+#cherry-editor-container .cherry-preview .mermaid {
     background: var(--bg-card);
     border-radius: 6px;
     padding: 16px;
