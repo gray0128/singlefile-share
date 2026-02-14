@@ -131,7 +131,7 @@ export default {
                 const html = renderMarkdownToHtml(content, share.display_name || 'Markdown Document');
                 headers.set('Content-Type', 'text/html; charset=utf-8');
                 // 允许加载外部图片
-                headers.set('Content-Security-Policy', "sandbox allow-scripts allow-same-origin; default-src 'self'; style-src 'unsafe-inline'; img-src * data:;");
+                headers.set('Content-Security-Policy', "sandbox allow-scripts allow-same-origin; default-src 'self'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; font-src *; img-src * data:;");
                 return new Response(html, { headers });
             }
 
@@ -150,7 +150,7 @@ export default {
 
             // HTML 文件：直接返回（原有行为）
             // Security Headers
-            headers.set('Content-Security-Policy', "sandbox allow-scripts allow-same-origin; default-src 'self'; style-src 'unsafe-inline'; img-src * data:;");
+            headers.set('Content-Security-Policy', "sandbox allow-scripts allow-same-origin; default-src 'self'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; font-src *; img-src * data:;");
 
             return new Response(object.body, { headers });
         }
