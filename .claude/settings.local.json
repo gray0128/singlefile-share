@@ -13,7 +13,11 @@
       "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)",
       "WebFetch(domain:www.weather.com.cn)",
       "mcp__MiniMax__understand_image",
-      "Bash(npm run deploy)"
+      "Bash(npm run deploy)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "Bash(git commit:*)",
+      "Bash(ls:*)"
     ]
   }
 }

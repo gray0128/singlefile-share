@@ -55,7 +55,7 @@ function renderUser() {
         <div class="user-menu-container">
             <span style="font-size: 0.9rem;">${state.user.username}</span>
             <img src="${state.user.avatar_url}" class="avatar" alt="${state.user.username}">
-            
+
             <div class="user-menu-dropdown">
                 ${isAdmin ? `
                 <a href="/admin" class="user-menu-item highlight">
@@ -708,4 +708,3 @@ window.insertDateTime = function() {
 };
 
 init();
-
