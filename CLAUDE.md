@@ -85,8 +85,11 @@ Files are stored in R2 with a specific key structure:
 **Cron-driven sync flow** (every 1 minute):
 1. Cron triggers `handleScheduled()` in `src/cron.js`
 2. Lists R2 objects and compares with D1 `files` table
-3. New files: Extract metadata (`<title>`, size) and insert to D1
+3. New files: Extract metadata (前 200KB) - `<title>` 或 Markdown `#` 标题，以及提取文本内容用于 FTS 索引
 4. Root files: Move to `files/{admin_id}/{uuid}.html`
+5. Inserts into D1 with FTS index (contentText) - 支持 HTML 和 Markdown 文件
+
+**注意**：Cron 同步的文件只建立 FTS 索引，向量索引需要通过管理员 reindex API 后续补全。
 
 #### 4. Search Architecture
 
@@ -95,11 +98,23 @@ The system supports three search modes:
 1. **Vector Search (AI)**: Uses Cloudflare AI (bge-m3) to generate embeddings, stored in Vectorize
    - Triggered when `type=vector` (default)
    - Falls back to metadata search if vector search fails
+   - Vector 索引元数据包含 userId，但搜索时不在 Vectorize 层面过滤（通过后续数据库查询过滤）
 
 2. **Full-Text Search**: Uses D1 FTS5 virtual table (`files_fts`)
    - Searches in `title`, `description`, and extracted `content`
+   - Supports HTML and Markdown files
+   - 搜索语法：
+     - 多词搜索：空格分隔使用 OR 匹配（如 "hello world" 匹配 hello 或 world）
+     - 精确短语：使用双引号包裹（如 "hello world" 匹配完整短语）
+   - Cron 同步的文件会自动建立 FTS 索引（读取前 200KB）
 
 3. **Metadata Search**: Direct SQL LIKE queries on `display_name`
+
+**管理员重新索引 API** (`POST /api/admin/reindex`):
+- 为缺失 FTS 索引的文件建立索引
+- 同时建立向量索引
+- 批次大小：20 个文件/次
+- 返回详细统计：processed, skipped, errors, has_more
 
 #### 5. Markdown File Handling
 
