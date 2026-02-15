@@ -225,16 +225,23 @@ export default {
 
             // REINDEX CONTENT (Admin)
             if (path === '/api/admin/reindex' && method === 'POST') {
-                const limit = 5; // Process small batch to avoid timeout
+                const limit = 20; // Larger batch size for faster indexing
                 const files = await db.getFilesMissingFts(limit);
 
                 let processed = 0;
+                let skipped = 0;
+                const errors = [];
+
                 for (const file of files) {
                     try {
                         const object = await bucket.get(file.r2_key);
                         if (object) {
                             const text = await object.text();
-                            const content = extractTextFromHtml(text);
+                            const isMarkdown = file.mime_type === 'text/markdown' || file.r2_key.endsWith('.md');
+                            const content = isMarkdown
+                                ? extractTextFromMarkdown(text)
+                                : extractTextFromHtml(text);
+
                             await db.indexFile(file.id, file.display_name, file.description, content);
 
                             // Also update vector index
@@ -244,13 +251,22 @@ export default {
                             });
 
                             processed++;
+                        } else {
+                            skipped++;
                         }
                     } catch (e) {
                         console.error(`Failed to index file ${file.id}:`, e);
+                        errors.push({ fileId: file.id, error: e.message });
                     }
                 }
 
-                return Response.json({ processed, remaining_batch_size: files.length });
+                return Response.json({
+                    processed,
+                    skipped,
+                    errors: errors.length > 0 ? errors : undefined,
+                    remaining_batch_size: files.length,
+                    has_more: files.length >= limit
+                });
             }
 
             return new Response('Not Found', { status: 404 });
@@ -275,11 +291,13 @@ export default {
 
                     if (matches.matches && matches.matches.length > 0) {
                         fileIds = matches.matches.map(m => m.id);
+                        console.log(`Vector search found ${fileIds.length} matches for "${search}"`);
                     } else {
                         fileIds = []; // No matches found in vector search
+                        console.log(`Vector search found no matches for "${search}"`);
                     }
                 } catch (e) {
-                    console.error('Vector search failed, falling back to FTS:', e);
+                    console.error('Vector search failed, falling back to metadata search:', e);
                     // fileIds remains null, which DB layer might interpret as "ignore ID filter"
                     // But for 'vector' type failure, we might want to fallback to 'meta' or 'exact'?
                     // Current DB logic: if fileIds is null, it falls back to metadata search if 'search' is present.

@@ -272,6 +272,7 @@ export class D1Helper {
         // 2. Full Text Exact Search
         if (search && type === 'exact') {
             try {
+                // Sanitize search term for FTS5 (escape double quotes)
                 const sanitizedSearch = search.replace(/"/g, '""');
                 const query = `
                     SELECT f.*,
@@ -289,7 +290,10 @@ export class D1Helper {
                     ORDER BY rank
                 `;
                 const stmt = this.db.prepare(query);
-                const result = await stmt.bind(userId, `"${sanitizedSearch}"`).all();
+                // Use flexible search (not forced phrase match)
+                // If user quotes the search term, do phrase match; otherwise token match
+                const ftsQuery = (search.includes('"') ? sanitizedSearch : sanitizedSearch.split(/\s+/).filter(t => t).join(' OR ')) || '*';
+                const result = await stmt.bind(userId, ftsQuery).all();
                 const results = result.results || [];
                 return results.map(this._parseTags);
             } catch (e) {
@@ -357,7 +361,7 @@ export class D1Helper {
             FROM files f
             LEFT JOIN files_fts fts ON f.id = fts.file_id
             WHERE fts.file_id IS NULL
-            AND f.mime_type = 'text/html'
+            AND f.mime_type IN ('text/html', 'text/markdown')
             LIMIT ?
         `);
         const result = await stmt.bind(limit).all();

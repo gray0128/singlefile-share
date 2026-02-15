@@ -1,5 +1,7 @@
 import { D1Helper } from './db.js';
 import { R2Helper } from './r2.js';
+import { extractTextFromHtml } from './utils.js';
+import { extractTitleFromMarkdown, extractTextFromMarkdown } from './markdown.js';
 
 export async function handleScheduled(event, env, ctx) {
     const db = new D1Helper(env.DB);
@@ -86,9 +88,10 @@ async function processNewFile(key, bucket, db, env) {
     const userId = match[1];
     let filename = match[2];
 
-    // Read Head for Title
+    // Read 200KB for title extraction and text indexing
     try {
-        const objectHead = await bucket.bucket.get(key, { range: { length: 10240 } });
+        const READ_SIZE = 200 * 1024; // 200KB for text extraction
+        const objectHead = await bucket.bucket.get(key, { range: { length: READ_SIZE } });
         if (!objectHead) return;
 
         // Restore original filename from metadata if available (for moved files)
@@ -97,15 +100,28 @@ async function processNewFile(key, bucket, db, env) {
         }
 
         const chunk = await objectHead.text();
-        const titleMatch = chunk.match(/<title>([^<]+)<\/title>/i);
-        // Fallback checks for display name
-        const displayName = titleMatch ? titleMatch[1].trim() : filename;
+        const isMarkdown = filename.toLowerCase().endsWith('.md');
+
+        let displayName;
+        let contentText = '';
+
+        if (isMarkdown) {
+            // Markdown file: extract title from # heading
+            const titleFromMd = extractTitleFromMarkdown(chunk);
+            displayName = titleFromMd || filename;
+            contentText = extractTextFromMarkdown(chunk);
+        } else {
+            // HTML file: extract from <title> tag
+            const titleMatch = chunk.match(/<title>([^<]+)<\/title>/i);
+            displayName = titleMatch ? titleMatch[1].trim() : filename;
+            contentText = extractTextFromHtml(chunk);
+        }
 
         const size = objectHead.size;
-        const mimeType = objectHead.httpMetadata?.contentType || 'text/html';
+        const mimeType = isMarkdown ? 'text/markdown' : (objectHead.httpMetadata?.contentType || 'text/html');
 
-        await db.createFile(userId, filename, displayName, size, key, mimeType);
-        console.log(`Registered ${key} for user ${userId} as ${filename}`);
+        await db.createFile(userId, filename, displayName, size, key, mimeType, null, contentText);
+        console.log(`Registered ${key} for user ${userId} as ${filename} (FTS indexed)`);
 
     } catch (e) {
         console.error(`Failed to register ${key}`, e);
