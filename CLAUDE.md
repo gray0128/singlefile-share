@@ -106,6 +106,12 @@ The system supports three search modes:
 The system supports Markdown (.md) file upload and rendering:
 
 - **Upload**: Supports `.md` files up to 10MB (same as HTML files)
+- **Create New**: Directly create new Markdown files from dashboard:
+  - Click "New Markdown" button to create empty file
+  - Auto-generated filename: `未命名-YYYY-MM-DD.md`
+  - Initial display name: "未命名"
+  - Auto-opens Editor.md editor
+  - Auto-updates display name from `# H1` heading on save
 - **Rendering**: `/raw/:share_id` endpoint automatically renders Markdown to HTML:
   - GFM (GitHub Flavored Markdown) support
   - Mermaid diagrams (flowcharts, sequence diagrams, etc.)
@@ -118,6 +124,7 @@ The system supports Markdown (.md) file upload and rendering:
 
 - `GET /api/files/:id/content` - Get raw file content (for editor)
 - `PUT /api/files/:id/content` - Update raw file content (editor save)
+- `POST /api/files/create` - Create new empty Markdown file
 
 #### 5.2 Editor Integration Guide
 
@@ -180,3 +187,11 @@ The `.agent/rules/no-building.md` file contains critical frontend development ru
 - **NEVER** generate build scripts or use bundlers
 - Prefer micro-libraries over large frameworks
 - Use modern CSS features (variables, nesting, container queries) without preprocessors
+
+## 相关文档更新
+
+当用户说更新相关文档时，需要判断以下文档是否需要更新
+- README.md
+- CLAUDE.md
+- 技术设计.md
+- 需求说明.md

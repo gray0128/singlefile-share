@@ -348,6 +348,44 @@ export default {
             return Response.json(newFile);
         }
 
+        // CREATE EMPTY MARKDOWN FILE
+        if (path === '/api/files/create' && method === 'POST') {
+            // 自动生成唯一文件名，不需要用户输入
+            const timestamp = new Date().toISOString().slice(0, 10);
+            const cleanFilename = `未命名-${timestamp}.md`;
+
+            // 默认内容为空，让用户自己写
+            const defaultContent = '';
+            const contentBytes = new TextEncoder().encode(defaultContent);
+            const fileSize = contentBytes.length;
+
+            // 检查配额
+            const usage = await db.getUserUsage(userId);
+            const limit = currentUser.storage_limit || 104857600;
+            if ((usage.total_used + fileSize) > limit) return new Response('Quota exceeded', { status: 403 });
+
+            // 创建 R2 对象
+            const r2Key = `files/${userId}/${crypto.randomUUID()}.md`;
+            await bucket.put(r2Key, defaultContent, {
+                httpMetadata: { contentType: 'text/markdown' }
+            });
+
+            // 显示名称使用"未命名"
+            const displayName = '未命名';
+            const contentText = extractTextFromMarkdown(defaultContent);
+
+            // 创建数据库记录
+            const newFile = await db.createFile(userId, cleanFilename, displayName, fileSize, r2Key, 'text/markdown', null, contentText);
+
+            // 触发向量索引
+            ctx.waitUntil(updateVectorIndex(env, newFile.id, contentText, {
+                userId: userId,
+                displayName: displayName
+            }));
+
+            return Response.json(newFile);
+        }
+
         // DELETE FILE
         if (path.startsWith('/api/files/') && method === 'DELETE') {
             const id = path.split('/api/files/')[1];
@@ -397,12 +435,23 @@ export default {
             await db.updateFileSize(id, newSize);
 
             // Update search index if text changed
+            let displayName = file.display_name;
             const contentText = file.mime_type === 'text/markdown'
                 ? extractTextFromMarkdown(content)
                 : extractTextFromHtml(content);
+
+            // 如果是 Markdown 文件，从内容中提取标题并更新显示名称
+            if (file.mime_type === 'text/markdown') {
+                const newTitle = extractTitleFromMarkdown(content);
+                if (newTitle) {
+                    displayName = newTitle;
+                    await db.updateFilename(id, displayName);
+                }
+            }
+
             ctx.waitUntil(updateVectorIndex(env, id, contentText, {
                 userId: userId,
-                displayName: file.display_name
+                displayName: displayName
             }));
 
             return Response.json({ success: true, size: newSize });

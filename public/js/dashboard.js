@@ -781,4 +781,42 @@ window.insertDateTime = function() {
     }
 };
 
+// Create Markdown file directly
+window.createMarkdownFile = async function () {
+    try {
+        showToast('正在创建文件...', 'info');
+
+        const res = await fetch('/api/files/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+
+        if (!res.ok) {
+            const error = await res.text();
+            throw new Error(error || '创建失败');
+        }
+
+        const newFile = await res.json();
+        showToast('文件创建成功', 'success');
+
+        // 刷新文件列表
+        loadFiles();
+
+        // 刷新存储空间显示
+        const userRes = await fetch('/auth/me');
+        if (userRes.ok) {
+            state.user = await userRes.json();
+            renderStorage();
+        }
+
+        // 自动打开编辑器
+        openEditorModal(newFile.id);
+
+    } catch (e) {
+        console.error('Failed to create file:', e);
+        showToast(e.message, 'error');
+    }
+};
+
 init();
