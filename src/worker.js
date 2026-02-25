@@ -223,6 +223,119 @@ export default {
                 return Response.json(updated);
             }
 
+            // DIAGNOSTIC: End-to-end search chain test
+            if (path === '/api/admin/search-diagnostic' && method === 'GET') {
+                const diag = {};
+
+                // 1. Check FTS records count
+                try {
+                    const ftsCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM files_fts').first();
+                    diag.ftsRecords = ftsCount?.cnt || 0;
+                } catch (e) {
+                    diag.ftsError = e.message;
+                }
+
+                // 2. Check total files
+                try {
+                    const filesCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM files').first();
+                    diag.totalFiles = filesCount?.cnt || 0;
+                } catch (e) {
+                    diag.filesError = e.message;
+                }
+
+                // 3. Test AI embedding
+                try {
+                    if (env.AI) {
+                        const testResp = await env.AI.run('@cf/baai/bge-m3', { text: ['test query'] });
+                        diag.aiEmbedding = {
+                            success: true,
+                            vectorLength: testResp?.data?.[0]?.length || 0
+                        };
+                    } else {
+                        diag.aiEmbedding = { success: false, error: 'env.AI not bound' };
+                    }
+                } catch (e) {
+                    diag.aiEmbedding = { success: false, error: e.message };
+                }
+
+                // 4. Test Vectorize query with the test embedding
+                try {
+                    if (env.VECTOR_INDEX && diag.aiEmbedding?.success) {
+                        const testEmbed = await env.AI.run('@cf/baai/bge-m3', { text: ['Claude Code'] });
+                        const queryVector = testEmbed.data[0];
+                        const matches = await env.VECTOR_INDEX.query(queryVector, { topK: 5 });
+                        diag.vectorizeQuery = {
+                            success: true,
+                            matchCount: matches?.matches?.length || 0,
+                            matches: (matches?.matches || []).map(m => ({
+                                id: m.id,
+                                score: m.score,
+                                metadata: m.metadata
+                            }))
+                        };
+                    } else {
+                        diag.vectorizeQuery = { success: false, error: 'env.VECTOR_INDEX not bound or AI failed' };
+                    }
+                } catch (e) {
+                    diag.vectorizeQuery = { success: false, error: e.message };
+                }
+
+                // 5. Sample FTS content (first 200 chars of first 3 records)
+                try {
+                    const ftsRows = await env.DB.prepare(
+                        'SELECT file_id, title, substr(content, 1, 200) as content_preview FROM files_fts LIMIT 3'
+                    ).all();
+                    diag.ftsSample = ftsRows.results || [];
+                } catch (e) {
+                    diag.ftsSampleError = e.message;
+                }
+
+                // 6. Simulate DB layer: check if vectorize IDs belong to current user
+                try {
+                    const matchIds = (diag.vectorizeQuery?.matches || []).map(m => m.id);
+                    if (matchIds.length > 0) {
+                        const placeholders = matchIds.map(() => '?').join(',');
+                        const dbCheck = await env.DB.prepare(
+                            `SELECT id, user_id, display_name FROM files WHERE id IN (${placeholders})`
+                        ).bind(...matchIds).all();
+                        diag.dbFileCheck = {
+                            searchedIds: matchIds,
+                            currentUserId: userId,
+                            foundFiles: (dbCheck.results || []).map(f => ({
+                                id: f.id,
+                                user_id: f.user_id,
+                                display_name: f.display_name,
+                                belongsToUser: String(f.user_id) === String(userId)
+                            }))
+                        };
+                    }
+                } catch (e) {
+                    diag.dbFileCheckError = e.message;
+                }
+
+                // 7. Full simulation: call getFilesByUserId exactly as the search API does
+                try {
+                    const matchIds = (diag.vectorizeQuery?.matches || []).map(m => m.id);
+                    const searchResult = await db.getFilesByUserId(userId, {
+                        search: 'Claude Code',
+                        tag: '',
+                        fileIds: matchIds,
+                        type: 'vector'
+                    });
+                    diag.fullSimulation = {
+                        resultCount: searchResult.length,
+                        firstResult: searchResult.length > 0 ? {
+                            id: searchResult[0].id,
+                            display_name: searchResult[0].display_name
+                        } : null
+                    };
+                } catch (e) {
+                    diag.fullSimulationError = e.message;
+                }
+
+                return Response.json(diag, null, 2);
+            }
+
             // REINDEX CONTENT (Admin)
             if (path === '/api/admin/reindex' && method === 'POST') {
                 const urlObj = new URL(request.url);
