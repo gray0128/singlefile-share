@@ -217,7 +217,7 @@ window.reindexFiles = async () => {
             totalProcessed += processed;
 
             if (processed > 0) {
-                 showToast(`已处理 ${totalProcessed} 个文件...`, 'info');
+                showToast(`已处理 ${totalProcessed} 个文件...`, 'info');
             }
         } while (processed > 0);
 
@@ -226,6 +226,48 @@ window.reindexFiles = async () => {
         showToast('重建索引失败: ' + e.message, 'error');
     } finally {
         if (btn) btn.disabled = false;
+    }
+};
+
+window.reindexAll = async () => {
+    if (!confirm('全量重建将清空所有搜索索引（FTS + 向量），然后重新索引全部文件。\n\n此操作可能需要几分钟，期间语义搜索不可用。确定继续？')) {
+        return;
+    }
+
+    const allBtn = document.getElementById('reindexAllBtn');
+    const reindexBtn = document.getElementById('reindexBtn');
+    if (allBtn) allBtn.disabled = true;
+    if (reindexBtn) reindexBtn.disabled = true;
+
+    try {
+        // Step 1: Clear all indexes
+        showToast('正在清空索引...', 'info');
+        const clearRes = await fetch('/api/admin/reindex-all', { method: 'POST' });
+        if (!clearRes.ok) throw new Error('清空索引失败');
+
+        showToast('索引已清空，开始全量重建...', 'info');
+
+        // Step 2: Loop reindex (reuse existing logic)
+        let totalProcessed = 0;
+        let processed = 0;
+        do {
+            const res = await fetch('/api/admin/reindex', { method: 'POST' });
+            if (!res.ok) throw new Error('重建失败');
+            const data = await res.json();
+            processed = data.processed;
+            totalProcessed += processed;
+
+            if (processed > 0) {
+                showToast(`全量重建中... 已处理 ${totalProcessed} 个文件`, 'info');
+            }
+        } while (processed > 0);
+
+        showToast(`全量重建完成，共处理 ${totalProcessed} 个文件`, 'success');
+    } catch (e) {
+        showToast('全量重建失败: ' + e.message, 'error');
+    } finally {
+        if (allBtn) allBtn.disabled = false;
+        if (reindexBtn) reindexBtn.disabled = false;
     }
 };
 

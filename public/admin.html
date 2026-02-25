@@ -192,10 +192,14 @@
                 <option value="active">正常</option>
                 <option value="locked">已锁定</option>
             </select>
-            <div style="flex: 1; display: flex; justify-content: flex-end;">
+            <div style="flex: 1; display: flex; justify-content: flex-end; gap: 8px;">
+                 <button id="reindexAllBtn" onclick="reindexAll()" class="action-btn" style="padding: 8px 16px;" title="清空所有 FTS 和向量索引后重新建立">
+                    <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 16px; margin-right: 4px;">restart_alt</span>
+                    全量重建
+                 </button>
                  <button id="reindexBtn" onclick="reindexFiles()" class="action-btn" style="padding: 8px 16px; border: 1px solid var(--accent); color: var(--accent);">
                     <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 16px; margin-right: 4px;">sync</span>
-                    重建搜索索引
+                    增量索引
                  </button>
             </div>
         </div>

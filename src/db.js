@@ -203,7 +203,7 @@ export class D1Helper {
 
         // Update FTS
         if (file) {
-             try {
+            try {
                 // We need to update the description in FTS.
                 // FTS5 doesn't support UPDATE easily for partial columns without re-inserting usually?
                 // Actually standard UPDATE works on FTS5 tables.
@@ -220,7 +220,7 @@ export class D1Helper {
     async getFilesByUserId(userId, { search, tag, fileIds, type = 'vector' } = {}) {
         // Helper to run standard LIKE query (Metadata Search)
         const runMetadataQuery = async () => {
-             let query = `
+            let query = `
                 SELECT f.*,
                 s.is_enabled as share_enabled, s.share_id, s.visit_count,
                 (SELECT json_group_array(json_object('id', t.id, 'name', t.name))
@@ -348,7 +348,7 @@ export class D1Helper {
         // Update FTS
         try {
             await this.db.prepare('UPDATE files_fts SET title = ? WHERE file_id = ?').bind(newName, id).run();
-        } catch(e) {}
+        } catch (e) { }
 
         return res;
     }
@@ -377,6 +377,10 @@ export class D1Helper {
         return await this.db.prepare(
             'INSERT INTO files_fts (file_id, title, description, content) VALUES (?, ?, ?, ?)'
         ).bind(fileId, title, description || '', content).run();
+    }
+
+    async clearAllFts() {
+        return await this.db.prepare('DELETE FROM files_fts').run();
     }
 
     async getAllFileKeys() {

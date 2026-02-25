@@ -270,6 +270,39 @@ export default {
                 });
             }
 
+            // FULL REINDEX: Clear all FTS + Vector, then let client loop reindex
+            if (path === '/api/admin/reindex-all' && method === 'POST') {
+                try {
+                    // 1. Clear all FTS records
+                    await db.clearAllFts();
+
+                    // 2. Clear all vectors from Vectorize index
+                    // Vectorize doesn't have a "delete all" API, so we get all file IDs and delete them
+                    if (env.VECTOR_INDEX) {
+                        const allFiles = await db.getAllFileKeys();
+                        // getAllFileKeys returns r2_key, we need file IDs
+                        // Use a simpler approach: get all file IDs from files table
+                        const allIds = await env.DB.prepare('SELECT id FROM files').all();
+                        const ids = (allIds.results || []).map(f => f.id.toString());
+                        if (ids.length > 0) {
+                            // Vectorize deleteByIds accepts up to 1000 IDs at a time
+                            for (let i = 0; i < ids.length; i += 1000) {
+                                const batch = ids.slice(i, i + 1000);
+                                await env.VECTOR_INDEX.deleteByIds(batch);
+                            }
+                        }
+                    }
+
+                    return Response.json({
+                        success: true,
+                        message: 'All FTS and vector indexes cleared. Ready for full rebuild.'
+                    });
+                } catch (e) {
+                    console.error('Full reindex clear error:', e);
+                    return new Response('Failed to clear indexes: ' + e.message, { status: 500 });
+                }
+            }
+
             return new Response('Not Found', { status: 404 });
         }
 
