@@ -36,6 +36,17 @@ binding = "AI"
 binding = "VECTOR_INDEX"
 index_name = "html-search-index"
 
+# Queue: 异步向量索引任务
+[[queues.producers]]
+binding = "VECTOR_QUEUE"
+queue = "vector-index-queue"
+
+[[queues.consumers]]
+queue = "vector-index-queue"
+max_batch_size = 5
+max_batch_timeout = 10
+max_retries = 3
+
 [assets]
 directory = "./public"
 binding = "ASSETS"

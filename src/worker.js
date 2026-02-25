@@ -244,10 +244,11 @@ export default {
 
                             await db.indexFile(file.id, file.display_name, file.description, content);
 
-                            // Also update vector index
-                            await updateVectorIndex(env, file.id, content, {
-                                userId: file.user_id,
-                                displayName: file.display_name
+                            // 向量索引入队（批量快速返回，无需逐条等待 AI）
+                            await env.VECTOR_QUEUE?.send({
+                                fileId: file.id,
+                                content: content.substring(0, 8000),
+                                metadata: { userId: file.user_id, displayName: file.display_name }
                             });
 
                             processed++;
@@ -357,10 +358,11 @@ export default {
 
             const newFile = await db.createFile(userId, file.name, displayName, file.size, r2Key, contentType, null, contentText);
 
-            // Trigger Vector Indexing
-            ctx.waitUntil(updateVectorIndex(env, newFile.id, contentText, {
-                userId: userId,
-                displayName: displayName
+            // 向量索引改为异步入队，避免阻塞上传响应
+            ctx.waitUntil(env.VECTOR_QUEUE?.send({
+                fileId: newFile.id,
+                content: contentText.substring(0, 8000),
+                metadata: { userId: userId, displayName: displayName }
             }));
 
             return Response.json(newFile);
@@ -395,10 +397,11 @@ export default {
             // 创建数据库记录
             const newFile = await db.createFile(userId, cleanFilename, displayName, fileSize, r2Key, 'text/markdown', null, contentText);
 
-            // 触发向量索引
-            ctx.waitUntil(updateVectorIndex(env, newFile.id, contentText, {
-                userId: userId,
-                displayName: displayName
+            // 向量索引改为异步入队
+            ctx.waitUntil(env.VECTOR_QUEUE?.send({
+                fileId: newFile.id,
+                content: contentText.substring(0, 8000),
+                metadata: { userId: userId, displayName: displayName }
             }));
 
             return Response.json(newFile);
@@ -467,9 +470,11 @@ export default {
                 }
             }
 
-            ctx.waitUntil(updateVectorIndex(env, id, contentText, {
-                userId: userId,
-                displayName: displayName
+            // 向量索引改为异步入队
+            ctx.waitUntil(env.VECTOR_QUEUE?.send({
+                fileId: parseInt(id),
+                content: contentText.substring(0, 8000),
+                metadata: { userId: userId, displayName: displayName }
             }));
 
             return Response.json({ success: true, size: newSize });
@@ -589,5 +594,19 @@ export default {
     // SCHEDULED CRON HANDLER
     async scheduled(event, env, ctx) {
         await handleScheduled(event, env, ctx);
+    },
+
+    // QUEUE CONSUMER: 异步向量索引
+    async queue(batch, env) {
+        for (const message of batch.messages) {
+            try {
+                const { fileId, content, metadata } = message.body;
+                await updateVectorIndex(env, fileId, content, metadata);
+                message.ack();
+            } catch (e) {
+                console.error(`Queue vector index failed for fileId ${message.body?.fileId}:`, e);
+                message.retry();
+            }
+        }
     }
 };
