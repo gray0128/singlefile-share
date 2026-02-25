@@ -225,11 +225,14 @@ export default {
 
             // REINDEX CONTENT (Admin)
             if (path === '/api/admin/reindex' && method === 'POST') {
-                const limit = 20; // Larger batch size for faster indexing
+                const urlObj = new URL(request.url);
+                const syncMode = urlObj.searchParams.get('sync') === '1';
+                const limit = syncMode ? 5 : 20; // 同步模式每批少一些，避免超时
                 const files = await db.getFilesMissingFts(limit);
 
                 let processed = 0;
                 let skipped = 0;
+                let vectored = 0;
                 const errors = [];
 
                 for (const file of files) {
@@ -244,12 +247,21 @@ export default {
 
                             await db.indexFile(file.id, file.display_name, file.description, content);
 
-                            // 向量索引入队（批量快速返回，无需逐条等待 AI）
-                            await env.VECTOR_QUEUE?.send({
-                                fileId: file.id,
-                                content: content.substring(0, 8000),
-                                metadata: { userId: file.user_id, displayName: file.display_name }
-                            });
+                            if (syncMode) {
+                                // 同步模式：直接调用 AI embedding + Vectorize（可靠但慢）
+                                await updateVectorIndex(env, file.id, content, {
+                                    userId: file.user_id,
+                                    displayName: file.display_name
+                                });
+                                vectored++;
+                            } else {
+                                // 异步模式：入队（快但依赖 consumer）
+                                await env.VECTOR_QUEUE?.send({
+                                    fileId: file.id,
+                                    content: content.substring(0, 8000),
+                                    metadata: { userId: file.user_id, displayName: file.display_name }
+                                });
+                            }
 
                             processed++;
                         } else {
@@ -264,6 +276,7 @@ export default {
                 return Response.json({
                     processed,
                     skipped,
+                    vectored: syncMode ? vectored : undefined,
                     errors: errors.length > 0 ? errors : undefined,
                     remaining_batch_size: files.length,
                     has_more: files.length >= limit
@@ -631,13 +644,16 @@ export default {
 
     // QUEUE CONSUMER: 异步向量索引
     async queue(batch, env) {
+        console.log(`[Queue] Received batch of ${batch.messages.length} messages`);
         for (const message of batch.messages) {
             try {
                 const { fileId, content, metadata } = message.body;
+                console.log(`[Queue] Processing fileId=${fileId}, contentLen=${content?.length}, displayName=${metadata?.displayName}`);
                 await updateVectorIndex(env, fileId, content, metadata);
                 message.ack();
+                console.log(`[Queue] Successfully indexed fileId=${fileId}`);
             } catch (e) {
-                console.error(`Queue vector index failed for fileId ${message.body?.fileId}:`, e);
+                console.error(`[Queue] Vector index failed for fileId ${message.body?.fileId}:`, e);
                 message.retry();
             }
         }

@@ -251,7 +251,7 @@ window.reindexAll = async () => {
         let totalProcessed = 0;
         let processed = 0;
         do {
-            const res = await fetch('/api/admin/reindex', { method: 'POST' });
+            const res = await fetch('/api/admin/reindex?sync=1', { method: 'POST' });
             if (!res.ok) throw new Error('重建失败');
             const data = await res.json();
             processed = data.processed;
