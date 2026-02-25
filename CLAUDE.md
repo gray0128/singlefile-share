@@ -97,8 +97,9 @@ The system supports three search modes:
 
 1. **Vector Search (AI)**: Uses Cloudflare AI (bge-m3) to generate embeddings, stored in Vectorize
    - Triggered when `type=vector` (default)
-   - Falls back to metadata search if vector search fails
+   - Falls back to metadata search **only if Vectorize/AI binding is unavailable** (`env.AI` or `env.VECTOR_INDEX` not bound); if the binding exists but returns zero matches, an **empty array** is returned directly — no silent fallback
    - Vector 索引元数据包含 userId，但搜索时不在 Vectorize 层面过滤（通过后续数据库查询过滤）
+   - **注意**：Vectorize 返回的 `id` 为字符串类型；D1 查询结果的 `f.id` 为整型，排序时统一使用 `String()` 转换后再比对
 
 2. **Full-Text Search**: Uses D1 FTS5 virtual table (`files_fts`)
    - Searches in `title`, `description`, and extracted `content`

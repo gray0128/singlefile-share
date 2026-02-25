@@ -234,12 +234,12 @@ export class D1Helper {
             `;
             const params = [userId];
 
-            if (fileIds && fileIds.length > 0) {
+            if (fileIds !== null && fileIds !== undefined && fileIds.length > 0) {
                 const placeholders = fileIds.map(() => '?').join(',');
                 query += ` AND f.id IN (${placeholders})`;
                 params.push(...fileIds);
-            } else if (search) {
-                // Metadata search: Title or Description
+            } else if ((fileIds === null || fileIds === undefined) && search) {
+                // Metadata search: Title or Description (only when not in vector search mode)
                 query += ' AND (f.display_name LIKE ? OR f.description LIKE ?)';
                 params.push(`%${search}%`);
                 params.push(`%${search}%`);
@@ -259,14 +259,19 @@ export class D1Helper {
             return await stmt.bind(...params).all();
         };
 
-        // 1. Vector Search Results (IDs provided)
-        if (fileIds) {
-             const result = await runMetadataQuery();
-             const files = result.results || [];
-             // Sort by relevance (order of fileIds)
-             const fileMap = new Map(files.map(f => [f.id, f]));
-             const sortedFiles = fileIds.map(id => fileMap.get(id)).filter(f => f);
-             return sortedFiles.map(this._parseTags);
+        // 1. Vector Search Results (IDs provided, including empty array for no-match case)
+        if (fileIds !== null && fileIds !== undefined) {
+            if (fileIds.length === 0) {
+                // Vector search found no matches — return empty, do NOT fall back to metadata search
+                return [];
+            }
+            const result = await runMetadataQuery();
+            const files = result.results || [];
+            // Sort by relevance (order of fileIds from Vectorize)
+            // Use String() on both sides to avoid integer vs string key mismatch
+            const fileMap = new Map(files.map(f => [String(f.id), f]));
+            const sortedFiles = fileIds.map(id => fileMap.get(String(id))).filter(f => f);
+            return sortedFiles.map(this._parseTags);
         }
 
         // 2. Full Text Exact Search

@@ -274,11 +274,29 @@ async function loadTags() {
 // ... existing code ...
 
 window.loadFiles = async function () {
-    try {
-        const search = document.getElementById('searchInput')?.value || '';
-        const type = document.getElementById('searchType')?.value || 'vector';
-        const tag = document.getElementById('tagFilter')?.value || '';
+    const grid = document.getElementById('fileGrid');
+    const search = document.getElementById('searchInput')?.value || '';
+    const type = document.getElementById('searchType')?.value || 'vector';
+    const tag = document.getElementById('tagFilter')?.value || '';
 
+    // 向量搜索时显示加载提示
+    if (search && type === 'vector' && grid) {
+        grid.innerHTML = `
+            <div style="width: 100%; text-align: center; color: var(--text-muted); padding: 60px 20px; font-family: var(--font-mono); font-size: 0.85rem;">
+                <span class="material-symbols-outlined" style="font-size: 36px; margin-bottom: 12px; opacity: 0.6; display: block; animation: spin 1.2s linear infinite;">progress_activity</span>
+                AI 语义搜索中...
+            </div>
+        `;
+        // 注入旋转动画（幂等）
+        if (!document.getElementById('spin-style')) {
+            const style = document.createElement('style');
+            style.id = 'spin-style';
+            style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+            document.head.appendChild(style);
+        }
+    }
+
+    try {
         const params = new URLSearchParams();
         if (search) {
             params.append('search', search);
@@ -292,6 +310,9 @@ window.loadFiles = async function () {
         renderFiles();
     } catch (e) {
         console.error(e);
+        if (grid) {
+            grid.innerHTML = `<div style="width:100%;text-align:center;color:var(--text-muted);padding:60px 20px;">加载失败，请刷新重试</div>`;
+        }
     }
 };
 
@@ -607,7 +628,7 @@ window.openEditorModal = async function (id) {
             previewTheme: 'dark',
             editorTheme: 'pastel-on-dark',
             toolbar: true,
-            toolbarIcons: function() {
+            toolbarIcons: function () {
                 return [
                     'bold', 'italic', 'del', '|',
                     'h1', 'h2', 'h3', 'h4', 'h5', 'h6', '|',
@@ -643,58 +664,58 @@ window.openEditorModal = async function (id) {
                 'datetime': '<a href="javascript:;" title="当前时间" onclick="insertDateTime()"><i class="fa fa-clock"></i></a>'
             },
             toolbarHandlers: {
-                'bold': function() {
+                'bold': function () {
                     this.bold();
                 },
-                'italic': function() {
+                'italic': function () {
                     this.italic();
                 },
-                'del': function() {
+                'del': function () {
                     this.strikethrough();
                 },
-                'h1': function() {
+                'h1': function () {
                     this.headers(1);
                 },
-                'h2': function() {
+                'h2': function () {
                     this.headers(2);
                 },
-                'h3': function() {
+                'h3': function () {
                     this.headers(3);
                 },
-                'h4': function() {
+                'h4': function () {
                     this.headers(4);
                 },
-                'h5': function() {
+                'h5': function () {
                     this.headers(5);
                 },
-                'h6': function() {
+                'h6': function () {
                     this.headers(6);
                 },
-                'list-ul': function() {
+                'list-ul': function () {
                     this.list('ul');
                 },
-                'list-ol': function() {
+                'list-ol': function () {
                     this.list('ol');
                 },
-                'quote': function() {
+                'quote': function () {
                     this.blockquote();
                 },
-                'code': function() {
+                'code': function () {
                     this.codeBlock();
                 },
-                'link': function() {
+                'link': function () {
                     this.link();
                 },
-                'image': function() {
+                'image': function () {
                     this.image();
                 },
-                'table': function() {
+                'table': function () {
                     this.table();
                 },
-                'preview': function() {
+                'preview': function () {
                     this.preview();
                 },
-                'fullscreen': function() {
+                'fullscreen': function () {
                     this.fullscreen();
                 }
             },
@@ -710,7 +731,7 @@ window.openEditorModal = async function (id) {
             sequenceDiagram: true,
             imageUpload: false,
             imageFormats: ['jpg', 'jpeg', 'gif', 'png', 'webp'],
-            onload: function() {
+            onload: function () {
                 console.log('Editor.md loaded');
             }
         });
@@ -773,7 +794,7 @@ window.saveMarkdownContent = async function () {
 };
 
 // Insert current datetime at cursor position
-window.insertDateTime = function() {
+window.insertDateTime = function () {
     if (editorMdInstance) {
         const now = new Date();
         const formatted = now.toISOString().replace('T', ' ').substring(0, 19);
