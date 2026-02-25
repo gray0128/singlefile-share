@@ -431,3 +431,83 @@ select:focus {
     padding: 16px;
     margin: 1em 0;
 }
+
+/* ── Custom Scrollbar ── */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+/* ── Search / Filter Bar ── */
+.search-bar {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    max-width: 600px;
+}
+
+.search-bar .search-group {
+    flex: 1;
+    display: flex;
+    position: relative;
+}
+
+.search-bar select,
+.search-bar input {
+    font-size: 0.8rem;
+    padding: 8px 12px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-bar .search-type {
+    border-right: none;
+    border-radius: 4px 0 0 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    min-width: 130px;
+}
+
+.search-bar .search-input {
+    flex: 1;
+    border-radius: 0 4px 4px 0;
+    min-width: 0;
+}
+
+.search-bar .search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(255, 51, 0, 0.15), 0 0 12px rgba(255, 51, 0, 0.06);
+}
+
+.search-bar .search-input:focus + .search-type,
+.search-bar .search-group:focus-within .search-type {
+    border-color: var(--accent);
+}
+
+.search-bar .tag-filter {
+    border-radius: 4px;
+    min-width: 100px;
+}
